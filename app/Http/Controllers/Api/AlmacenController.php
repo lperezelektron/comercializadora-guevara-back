@@ -42,7 +42,7 @@ class AlmacenController extends Controller
 
     public function show(Almacen $almacen)
     {
-        $almacen->load('inventarios.articulo.categoria');
+        $almacen->load(['inventarios.articulo.categoria']);
 
         return response()->json([
             'almacen'         => $almacen,

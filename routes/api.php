@@ -65,10 +65,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('articulos',   ArticuloController::class);
     Route::get('articulos/{articulo}/stock', [ArticuloController::class, 'stock']);
 
-    Route::apiResource('almacenes',   AlmacenController::class);
+    Route::apiResource('almacenes', AlmacenController::class)
+    ->parameters(['almacenes' => 'almacen']);
     Route::get('almacenes/{almacen}/inventario', [AlmacenController::class, 'inventario']);
 
-    Route::apiResource('proveedores', ProveedorController::class);
+    Route::apiResource('proveedores', ProveedorController::class)
+    ->parameters(['proveedores' => 'proveedor']);
     Route::get('proveedores/{proveedor}/estado-cuenta', [ProveedorController::class, 'estadoCuenta']);
 
     Route::apiResource('clientes',    ClienteController::class);
