@@ -109,7 +109,7 @@ class CompraController extends Controller
                 $inventario->existencia += $det['cantidad'];
                 $inventario->costo      = $det['costo'];        // actualiza costo
                 $inventario->precio     = $det['precio'];       // actualiza precio venta
-                $inventario->precioMin  = $det['precio_min'];
+                $inventario->precio_min  = $det['precio_min'];
                 $inventario->empaque    = $det['empaque'] ?? 0;
                 $inventario->save();
 

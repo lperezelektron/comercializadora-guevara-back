@@ -41,7 +41,7 @@ class VentaDetalle extends Model
 
     public function lote()
     {
-        return $this->belongsTo(CompraDetalle::class, 'lote_id', 'lote');
+        return $this->belongsTo(Inventario::class, 'lote_id');
     }
 
     // Métodos auxiliares
