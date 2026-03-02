@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan route:list --path=admin/usuarios)",
+      "Bash(php artisan route:list --path=admin/permisos)"
+    ]
+  }
+}
