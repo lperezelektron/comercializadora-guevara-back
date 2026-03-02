@@ -69,7 +69,7 @@
 <!-- Sidebar -->
 <aside class="sidebar">
     <a href="{{ route('admin.roles.index') }}" class="sidebar-brand">
-        <i class="bi bi-tree me-2"></i> Limonero
+        <i class="bi bi-shield-shaded"></i></i> Limonero
     </a>
     <nav class="mt-2">
         <ul class="nav flex-column">
@@ -82,6 +82,18 @@
                 <a class="nav-link {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}"
                    href="{{ route('admin.roles.index') }}">
                     <i class="bi bi-shield-lock"></i> Roles
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.usuarios.*') ? 'active' : '' }}"
+                   href="{{ route('admin.usuarios.index') }}">
+                    <i class="bi bi-people"></i> Usuarios
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('admin.permisos.*') ? 'active' : '' }}"
+                   href="{{ route('admin.permisos.index') }}">
+                    <i class="bi bi-key"></i> Permisos
                 </a>
             </li>
         </ul>
