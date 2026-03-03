@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Articulo extends Model
 {
@@ -21,6 +22,15 @@ class Articulo extends Model
     protected $casts = [
         'activo' => 'boolean',
     ];
+
+    protected $appends = ['imagen_url'];
+
+    public function getImagenUrlAttribute(): ?string
+    {
+        return $this->imagen
+            ? Storage::disk('s3')->url($this->imagen)
+            : null;
+    }
 
     // Relaciones
     public function categoria()

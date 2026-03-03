@@ -53,5 +53,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('permisos/{permission}/edit',  [PermissionController::class, 'edit'])->name('permisos.edit');
         Route::put('permisos/{permission}',       [PermissionController::class, 'update'])->name('permisos.update');
         Route::delete('permisos/{permission}',    [PermissionController::class, 'destroy'])->name('permisos.destroy');
+
     });
 });

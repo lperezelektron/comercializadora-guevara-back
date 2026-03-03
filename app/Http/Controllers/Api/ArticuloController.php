@@ -8,6 +8,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Articulo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ArticuloController extends Controller
 {
@@ -48,7 +50,15 @@ class ArticuloController extends Controller
             'unidad'       => 'required|string|max:5',
             'categoria_id' => 'required|exists:categorias,id',
             'activo'       => 'boolean',
+            'imagen'       => 'nullable|image|max:2048',
         ]);
+
+        $imagenPath = null;
+        if ($request->hasFile('imagen')) {
+            $ext        = $request->file('imagen')->getClientOriginalExtension();
+            $imagenPath = $request->file('imagen')
+                ->storeAs('articulos', Str::uuid() . '.' . $ext, 's3');
+        }
 
         $articulo = Articulo::create([
             'nombre'       => $request->nombre,
@@ -56,6 +66,7 @@ class ArticuloController extends Controller
             'unidad'       => $request->unidad,
             'categoria_id' => $request->categoria_id,
             'activo'       => $request->boolean('activo', true),
+            'imagen'       => $imagenPath,
         ]);
 
         return response()->json([
@@ -85,9 +96,22 @@ class ArticuloController extends Controller
             'unidad'       => 'sometimes|required|string|max:5',
             'categoria_id' => 'sometimes|required|exists:categorias,id',
             'activo'       => 'boolean',
+            'imagen'       => 'nullable|image|max:2048',
         ]);
 
-        $articulo->update($request->only('nombre', 'nombre_corto', 'unidad', 'categoria_id', 'activo'));
+        $data = $request->only('nombre', 'nombre_corto', 'unidad', 'categoria_id', 'activo');
+
+        if ($request->hasFile('imagen')) {
+            // Eliminar imagen anterior
+            if ($articulo->imagen) {
+                Storage::disk('s3')->delete($articulo->imagen);
+            }
+            $ext          = $request->file('imagen')->getClientOriginalExtension();
+            $data['imagen'] = $request->file('imagen')
+                ->storeAs('articulos', Str::uuid() . '.' . $ext, 's3');
+        }
+
+        $articulo->update($data);
 
         return response()->json([
             'message'  => 'Artículo actualizado.',
@@ -102,15 +126,16 @@ class ArticuloController extends Controller
             return response()->json(['message' => 'Artículo desactivado (tiene movimientos registrados).']);
         }
 
+        if ($articulo->imagen) {
+            Storage::disk('s3')->delete($articulo->imagen);
+        }
+
         $articulo->inventarios()->delete();
         $articulo->delete();
 
         return response()->json(['message' => 'Artículo eliminado.']);
     }
 
-    /**
-     * Stock del artículo por almacén y variedad
-     */
     public function stock(Articulo $articulo)
     {
         $inventarios = $articulo->inventarios()->with('almacen')->get();
