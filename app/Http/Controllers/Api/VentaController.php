@@ -66,12 +66,13 @@ class VentaController extends Controller
      */
     public function store(Request $request)
     {
+        
         $request->validate([
             'fecha'                      => 'required|date',
             'cliente_id'                 => 'required|exists:clientes,id',
             'almacen_id'                 => 'required|exists:almacenes,id',
-            'f_pago_id'                  => 'required|exists:forma_pago,id',
             'credito'                    => 'boolean',
+            'f_pago_id'                  => 'required_unless:credito,true|nullable|exists:forma_pago,id',
             'dias_credito'               => 'required_if:credito,true|integer|min:1',
             'subtotal'                   => 'required|numeric|min:0',
             'impuestos'                  => 'numeric|min:0',

@@ -66,7 +66,7 @@ class CompraController extends Controller
             'total'                          => 'required|numeric|min:0',
             'credito'                        => 'boolean',
             'dias_credito'                   => 'required_if:credito,true|integer|min:1',
-            'f_pago_id'                      => 'required_unless:credito,true|exists:forma_pago,id',
+            'f_pago_id'                      => 'required_unless:credito,true|nullable|exists:forma_pago,id',
             'detalles'                       => 'required|array|min:1',
             'detalles.*.articulo_id'         => 'required|exists:articulos,id',
             'detalles.*.variedad'            => 'required|string|max:50',
