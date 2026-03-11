@@ -34,6 +34,12 @@ class Almacen extends Model
         return $this->hasMany(Venta::class);
     }
 
+    public function usuarios()
+    {
+        return $this->hasMany(User::class);
+    }
+
+
     // Métodos auxiliares
     public function isActive()
     {

@@ -19,6 +19,7 @@ class User extends Authenticatable
         'telefono',
         'direccion',
         'status',
+        'almacen_id',
     ];
 
     protected $hidden = [
@@ -56,6 +57,36 @@ class User extends Authenticatable
     {
         return $this->hasMany(CorteCaja::class);
     }
+
+    public function almacen()
+    {
+        return $this->belongsTo(Almacen::class);
+    }
+
+    public function hasAlmacen(): bool
+    {
+        return !is_null($this->almacen_id);
+    }
+
+    public function getAlmacenId(): ?int
+    {
+        return $this->almacen_id;
+    }
+
+    // Scopes
+    public function scopePorAlmacen($query, int $almacenId)
+    {
+        return $query->where('almacen_id', $almacenId);
+    }
+
+    public function scopeSinAlmacen($query)
+    {
+        return $query->whereNull('almacen_id');
+    }
+
+
+
+
 
     // Métodos auxiliares
     public function hasRole($roleName)

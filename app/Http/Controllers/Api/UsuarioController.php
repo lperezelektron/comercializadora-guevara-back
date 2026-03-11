@@ -63,23 +63,25 @@ class UsuarioController extends Controller
         }
 
         $request->validate([
-            'name'      => 'required|string|max:255',
-            'email'     => 'required|email|unique:users,email',
-            'password'  => 'required|string|min:8',
-            'role_id'   => 'required|exists:roles,id',
-            'telefono'  => 'nullable|string|max:20',
-            'direccion' => 'nullable|string|max:255',
-            'status'    => 'in:active,inactive',
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|unique:users,email',
+            'password'   => 'required|string|min:8',
+            'role_id'    => 'required|exists:roles,id',
+            'telefono'   => 'nullable|string|max:20',
+            'direccion'  => 'nullable|string|max:255',
+            'status'     => 'in:active,inactive',
+            'almacen_id' => 'nullable|exists:almacenes,id',
         ]);
 
         $usuario = User::create([
-            'name'      => $request->name,
-            'email'     => $request->email,
-            'password'  => Hash::make($request->password),
-            'role_id'   => $request->role_id,
-            'telefono'  => $request->telefono,
-            'direccion' => $request->direccion,
-            'status'    => $request->status ?? 'active',
+            'name'       => $request->name,
+            'email'      => $request->email,
+            'password'   => Hash::make($request->password),
+            'role_id'    => $request->role_id,
+            'telefono'   => $request->telefono,
+            'direccion'  => $request->direccion,
+            'status'     => $request->status ?? 'active',
+            'almacen_id' => $request->almacen_id,
         ]);
 
         return response()->json([
@@ -115,15 +117,16 @@ class UsuarioController extends Controller
         }
 
         $request->validate([
-            'name'      => 'sometimes|required|string|max:255',
-            'email'     => 'sometimes|required|email|unique:users,email,' . $usuario->id,
-            'role_id'   => 'sometimes|required|exists:roles,id',
-            'telefono'  => 'nullable|string|max:20',
-            'direccion' => 'nullable|string|max:255',
-            'status'    => 'in:active,inactive',
+            'name'       => 'sometimes|required|string|max:255',
+            'email'      => 'sometimes|required|email|unique:users,email,' . $usuario->id,
+            'role_id'    => 'sometimes|required|exists:roles,id',
+            'telefono'   => 'nullable|string|max:20',
+            'direccion'  => 'nullable|string|max:255',
+            'status'     => 'in:active,inactive',
+            'almacen_id' => 'nullable|exists:almacenes,id',
         ]);
 
-        $usuario->update($request->only('name', 'email', 'role_id', 'telefono', 'direccion', 'status'));
+        $usuario->update($request->only('name', 'email', 'role_id', 'telefono', 'direccion', 'status', 'almacen_id'));
 
         return response()->json([
             'message' => 'Usuario actualizado correctamente.',
