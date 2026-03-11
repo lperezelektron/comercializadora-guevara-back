@@ -88,6 +88,7 @@ class CompraController extends Controller
                 'fecha'        => $request->fecha,
                 'referencia'   => $referencia,
                 'proveedor_id' => $request->proveedor_id,
+                'almacen_id'   => $request->almacen_id,
                 'user_id'      => auth()->id(),
                 'subtotal'     => $request->subtotal,
                 'impuestos'    => $request->impuestos ?? 0,
@@ -160,7 +161,8 @@ class CompraController extends Controller
                 // Registrar salida de caja (pago de contado)
                 \App\Models\Caja::salida(
                     $request->total,
-                    "Compra #{$compra->id} - {$compra->referencia}"
+                    "Compra #{$compra->id} - {$compra->referencia}",
+                    $request->almacen_id
                 );
             }
 

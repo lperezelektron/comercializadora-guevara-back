@@ -4,8 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Carbon\Carbon;
-
 class Compra extends Model
 {
     use HasFactory;
@@ -14,6 +12,7 @@ class Compra extends Model
         'fecha',
         'referencia',
         'proveedor_id',
+        'almacen_id',
         'user_id',
         'subtotal',
         'impuestos',
@@ -31,6 +30,11 @@ class Compra extends Model
     public function proveedor()
     {
         return $this->belongsTo(Proveedor::class);
+    }
+
+    public function almacen()
+    {
+        return $this->belongsTo(Almacen::class);
     }
 
     public function user()

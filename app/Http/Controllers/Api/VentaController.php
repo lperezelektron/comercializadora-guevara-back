@@ -180,7 +180,8 @@ class VentaController extends Controller
                 // 5. Contado → registrar entrada en Caja
                 Caja::entrada(
                     $request->total,
-                    'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT) . ' - ' . $request->fecha
+                    'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT) . ' - ' . $request->fecha,
+                    $venta->almacen_id
                 );
             }
 
@@ -258,7 +259,8 @@ class VentaController extends Controller
             if (!$venta->credito) {
                 Caja::salida(
                     $venta->total,
-                    'Cancelación VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT)
+                    'Cancelación VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT),
+                    $venta->almacen_id
                 );
             }
 

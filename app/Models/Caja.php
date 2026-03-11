@@ -18,6 +18,7 @@ class Caja extends Model
         'referencia',
         'corte_id',
         'user_id',
+        'almacen_id',
     ];
 
     protected $casts = [
@@ -36,6 +37,11 @@ class Caja extends Model
         return $this->belongsTo(CorteCaja::class, 'corte_id');
     }
 
+    public function almacen()
+    {
+        return $this->belongsTo(Almacen::class);
+    }
+
     // Métodos auxiliares
     public function esEntrada()
     {
@@ -52,47 +58,50 @@ class Caja extends Model
         return $this->corte_id !== null;
     }
 
-    public static function entrada($cantidad, $referencia)
+    public static function entrada($cantidad, $referencia, $almacenId = null)
     {
         return self::create([
-            'fecha' => now(),
-            'tipo' => 'entrada',
-            'cantidad' => $cantidad,
-            'referencia' => $referencia,
-            'user_id' => auth()->id(),
+            'fecha'       => now(),
+            'tipo'        => 'entrada',
+            'cantidad'    => $cantidad,
+            'referencia'  => $referencia,
+            'user_id'     => auth()->id(),
+            'almacen_id'  => $almacenId,
         ]);
     }
 
-    public static function salida($cantidad, $referencia)
+    public static function salida($cantidad, $referencia, $almacenId = null)
     {
         return self::create([
-            'fecha' => now(),
-            'tipo' => 'salida',
-            'cantidad' => $cantidad,
-            'referencia' => $referencia,
-            'user_id' => auth()->id(),
+            'fecha'       => now(),
+            'tipo'        => 'salida',
+            'cantidad'    => $cantidad,
+            'referencia'  => $referencia,
+            'user_id'     => auth()->id(),
+            'almacen_id'  => $almacenId,
         ]);
     }
 
-    public static function saldoActual()
+    public static function saldoActual($almacenId = null)
     {
-        $entradas = self::where('tipo', 'entrada')->sum('cantidad');
-        $salidas = self::where('tipo', 'salida')->sum('cantidad');
+        $q = self::whereNull('corte_id');
+        if ($almacenId) $q->where('almacen_id', $almacenId);
+
+        $entradas = (clone $q)->where('tipo', 'entrada')->sum('cantidad');
+        $salidas  = (clone $q)->where('tipo', 'salida')->sum('cantidad');
         return $entradas - $salidas;
     }
 
-    public static function saldoDelDia($fecha = null)
+    public static function saldoDelDia($fecha = null, $almacenId = null)
     {
         $fecha = $fecha ?? now()->toDateString();
-        
-        $entradas = self::where('tipo', 'entrada')
-                        ->whereDate('fecha', $fecha)
-                        ->sum('cantidad');
-        
-        $salidas = self::where('tipo', 'salida')
-                       ->whereDate('fecha', $fecha)
-                       ->sum('cantidad');
-        
+
+        $q = self::whereNull('corte_id')->whereDate('fecha', $fecha);
+        if ($almacenId) $q->where('almacen_id', $almacenId);
+
+        $entradas = (clone $q)->where('tipo', 'entrada')->sum('cantidad');
+        $salidas  = (clone $q)->where('tipo', 'salida')->sum('cantidad');
+
         return $entradas - $salidas;
     }
 
@@ -133,5 +142,10 @@ class Caja extends Model
     public function scopePorUsuario($query, $userId)
     {
         return $query->where('user_id', $userId);
+    }
+
+    public function scopePorAlmacen($query, $almacenId)
+    {
+        return $query->where('almacen_id', $almacenId);
     }
 }

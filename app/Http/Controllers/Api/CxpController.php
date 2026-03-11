@@ -62,15 +62,6 @@ class CxpController extends Controller
                 $ctaXPagar->cargo($request->importe, $request->f_pago_id);
             } else {
                 $ctaXPagar->abonar($request->importe, $request->f_pago_id);
-
-                // Registrar salida de caja si se paga con efectivo
-                $formaPago = \App\Models\FormaPago::find($request->f_pago_id);
-                if ($formaPago && strtolower($formaPago->descripcion) === 'efectivo') {
-                    \App\Models\Caja::salida(
-                        $request->importe,
-                        "Pago CxP #{$ctaXPagar->id} - {$ctaXPagar->proveedor->nombre}"
-                    );
-                }
             }
 
             return response()->json([
