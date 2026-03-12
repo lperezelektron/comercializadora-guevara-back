@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Almacen;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -38,9 +39,10 @@ class UsuarioController extends Controller
 
     public function create()
     {
-        $roles = Role::orderBy('name')->get();
+        $roles     = Role::orderBy('name')->get();
+        $almacenes = Almacen::activo()->orderBy('descripcion')->get();
 
-        return view('admin.usuarios.create', compact('roles'));
+        return view('admin.usuarios.create', compact('roles', 'almacenes'));
     }
 
     public function store(Request $request)
@@ -73,16 +75,17 @@ class UsuarioController extends Controller
 
     public function show(User $usuario)
     {
-        $usuario->load('role.permissions');
+        $usuario->load(['role.permissions', 'almacen']);
 
         return view('admin.usuarios.show', compact('usuario'));
     }
 
     public function edit(User $usuario)
     {
-        $roles = Role::orderBy('name')->get();
+        $roles     = Role::orderBy('name')->get();
+        $almacenes = Almacen::activo()->orderBy('descripcion')->get();
 
-        return view('admin.usuarios.edit', compact('usuario', 'roles'));
+        return view('admin.usuarios.edit', compact('usuario', 'roles', 'almacenes'));
     }
 
     public function update(Request $request, User $usuario)
