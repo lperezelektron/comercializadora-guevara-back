@@ -51,15 +51,25 @@ class CtaXPagar extends Model
         }
 
         CxpDetalle::create([
-            'cxp_id' => $this->id,
-            'fecha' => now(),
-            'importe' => $importe,
+            'cxp_id'    => $this->id,
+            'fecha'     => now(),
+            'importe'   => $importe,
             'f_pago_id' => $formaPagoId,
-            'tipo' => 'abono',
+            'tipo'      => 'abono',
         ]);
 
         $this->saldo -= $importe;
         $this->save();
+
+        // Registrar salida de caja si es efectivo
+        $formaPago = FormaPago::find($formaPagoId);
+        if ($formaPago && strtolower($formaPago->descripcion) === 'efectivo') {
+            Caja::salida(
+                $importe,
+                "Pago CxP #{$this->id} - {$this->proveedor->nombre}",
+                $this->compra->almacen_id ?? null
+            );
+        }
 
         return $this;
     }

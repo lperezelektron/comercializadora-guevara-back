@@ -60,6 +60,9 @@
                         @endif
                     </dd>
 
+                    <dt class="col-5 text-muted">Almacén</dt>
+                    <dd class="col-7">{{ $usuario->almacen?->descripcion ?? '—' }}</dd>
+
                     <dt class="col-5 text-muted">Teléfono</dt>
                     <dd class="col-7">{{ $usuario->telefono ?? '—' }}</dd>
 

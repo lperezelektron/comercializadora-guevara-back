@@ -74,6 +74,21 @@
                             @error('telefono') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
 
+                        <div class="col-md-6">
+                            <label for="almacen_id" class="form-label fw-semibold">Almacén</label>
+                            <select id="almacen_id" name="almacen_id"
+                                    class="form-select @error('almacen_id') is-invalid @enderror">
+                                <option value="">— Sin almacén asignado —</option>
+                                @foreach($almacenes as $almacen)
+                                    <option value="{{ $almacen->id }}"
+                                        {{ old('almacen_id', $usuario->almacen_id) == $almacen->id ? 'selected' : '' }}>
+                                        {{ $almacen->descripcion }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('almacen_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
                         <div class="col-12">
                             <label for="direccion" class="form-label fw-semibold">Dirección</label>
                             <textarea id="direccion" name="direccion" rows="2"

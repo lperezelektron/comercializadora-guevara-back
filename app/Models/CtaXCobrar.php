@@ -63,13 +63,11 @@ class CtaXCobrar extends Model
         // Registrar entrada en caja si es efectivo
         $formaPago = FormaPago::find($formaPagoId);
         if ($formaPago && strtolower($formaPago->descripcion) === 'efectivo') {
-            Caja::create([
-                'fecha' => now(),
-                'tipo' => 'entrada',
-                'cantidad' => $importe,
-                'referencia' => "Abono CxC #{$this->id} - Cliente: {$this->cliente->nombre}",
-                'user_id' => auth()->id(),
-            ]);
+            Caja::entrada(
+                $importe,
+                "Abono CxC #{$this->id} - Cliente: {$this->cliente->nombre}",
+                $this->venta->almacen_id ?? null
+            );
         }
 
         return $this;

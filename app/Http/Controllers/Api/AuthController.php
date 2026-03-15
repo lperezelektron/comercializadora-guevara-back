@@ -50,11 +50,12 @@ class AuthController extends Controller
             'message' => 'Login exitoso.',
             'token'   => $token,
             'user'    => [
-                'id'      => $user->id,
-                'name'    => $user->name,
-                'email'   => $user->email,
-                'role'    => $user->role?->name,
-                'permisos'=> $permisos,
+                'id'        => $user->id,
+                'name'      => $user->name,
+                'email'     => $user->email,
+                'almacen_id'=> $user->almacen_id,
+                'role'      => $user->role?->name,                
+                'permisos'  => $permisos,
             ],
         ]);
     }
@@ -81,13 +82,14 @@ class AuthController extends Controller
             : collect();
 
         return response()->json([
-            'id'       => $user->id,
-            'name'     => $user->name,
-            'email'    => $user->email,
-            'telefono' => $user->telefono,
-            'status'   => $user->status,
-            'role'     => $user->role?->name,
-            'permisos' => $permisos,
+            'id'         => $user->id,
+            'name'       => $user->name,
+            'email'      => $user->email,
+            'telefono'   => $user->telefono,
+            'status'     => $user->status,
+            'almacen_id' => $user->almacen_id,
+            'role'       => $user->role?->name,
+            'permisos'   => $permisos,
         ]);
     }
 

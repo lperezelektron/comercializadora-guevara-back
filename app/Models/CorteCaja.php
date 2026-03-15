@@ -15,6 +15,7 @@ class CorteCaja extends Model
         'fecha',
         'importe',
         'user_id',
+        'almacen_id',
     ];
 
     protected $casts = [
@@ -26,6 +27,11 @@ class CorteCaja extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function almacen()
+    {
+        return $this->belongsTo(Almacen::class);
     }
 
     public function movimientos()
@@ -45,13 +51,16 @@ class CorteCaja extends Model
 
     public function cerrar()
     {
-        $this->calcularImporte();
-        $this->save();
+        // Calcular el saldo antes de asociar los movimientos
+        $this->importe = Caja::saldoActual($this->almacen_id);
 
-        // Asociar todos los movimientos sin corte a este corte
-        Caja::whereNull('corte_id')
-            ->where('fecha', '<=', $this->fecha)
-            ->update(['corte_id' => $this->id]);
+        $query = Caja::whereNull('corte_id')->where('fecha', '<=', $this->fecha);
+        if ($this->almacen_id) {
+            $query->where('almacen_id', $this->almacen_id);
+        }
+        $query->update(['corte_id' => $this->id]);
+
+        $this->save();
 
         return $this;
     }

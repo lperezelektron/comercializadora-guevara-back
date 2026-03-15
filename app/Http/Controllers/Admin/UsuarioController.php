@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Almacen;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -38,31 +39,34 @@ class UsuarioController extends Controller
 
     public function create()
     {
-        $roles = Role::orderBy('name')->get();
+        $roles     = Role::orderBy('name')->get();
+        $almacenes = Almacen::activo()->orderBy('descripcion')->get();
 
-        return view('admin.usuarios.create', compact('roles'));
+        return view('admin.usuarios.create', compact('roles', 'almacenes'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'      => ['required', 'string', 'max:255'],
-            'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'string', 'min:8', 'confirmed'],
-            'role_id'   => ['required', 'exists:roles,id'],
-            'telefono'  => ['nullable', 'string', 'max:20'],
-            'direccion' => ['nullable', 'string', 'max:255'],
-            'status'    => ['in:active,inactive'],
+            'name'       => ['required', 'string', 'max:255'],
+            'email'      => ['required', 'email', 'unique:users,email'],
+            'password'   => ['required', 'string', 'min:8', 'confirmed'],
+            'role_id'    => ['required', 'exists:roles,id'],
+            'telefono'   => ['nullable', 'string', 'max:20'],
+            'direccion'  => ['nullable', 'string', 'max:255'],
+            'status'     => ['in:active,inactive'],
+            'almacen_id' => ['nullable', 'exists:almacenes,id'],
         ]);
 
         $usuario = User::create([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'password'  => Hash::make($data['password']),
-            'role_id'   => $data['role_id'],
-            'telefono'  => $data['telefono'] ?? null,
-            'direccion' => $data['direccion'] ?? null,
-            'status'    => $data['status'] ?? 'active',
+            'name'       => $data['name'],
+            'email'      => $data['email'],
+            'password'   => Hash::make($data['password']),
+            'role_id'    => $data['role_id'],
+            'telefono'   => $data['telefono'] ?? null,
+            'direccion'  => $data['direccion'] ?? null,
+            'status'     => $data['status'] ?? 'active',
+            'almacen_id' => $data['almacen_id'] ?? null,
         ]);
 
         return redirect()->route('admin.usuarios.index')
@@ -71,36 +75,39 @@ class UsuarioController extends Controller
 
     public function show(User $usuario)
     {
-        $usuario->load('role.permissions');
+        $usuario->load(['role.permissions', 'almacen']);
 
         return view('admin.usuarios.show', compact('usuario'));
     }
 
     public function edit(User $usuario)
     {
-        $roles = Role::orderBy('name')->get();
+        $roles     = Role::orderBy('name')->get();
+        $almacenes = Almacen::activo()->orderBy('descripcion')->get();
 
-        return view('admin.usuarios.edit', compact('usuario', 'roles'));
+        return view('admin.usuarios.edit', compact('usuario', 'roles', 'almacenes'));
     }
 
     public function update(Request $request, User $usuario)
     {
         $data = $request->validate([
-            'name'      => ['required', 'string', 'max:255'],
-            'email'     => ['required', 'email', "unique:users,email,{$usuario->id}"],
-            'role_id'   => ['required', 'exists:roles,id'],
-            'telefono'  => ['nullable', 'string', 'max:20'],
-            'direccion' => ['nullable', 'string', 'max:255'],
-            'status'    => ['in:active,inactive'],
+            'name'       => ['required', 'string', 'max:255'],
+            'email'      => ['required', 'email', "unique:users,email,{$usuario->id}"],
+            'role_id'    => ['required', 'exists:roles,id'],
+            'telefono'   => ['nullable', 'string', 'max:20'],
+            'direccion'  => ['nullable', 'string', 'max:255'],
+            'status'     => ['in:active,inactive'],
+            'almacen_id' => ['nullable', 'exists:almacenes,id'],
         ]);
 
         $usuario->update([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'role_id'   => $data['role_id'],
-            'telefono'  => $data['telefono'] ?? null,
-            'direccion' => $data['direccion'] ?? null,
-            'status'    => $data['status'] ?? $usuario->status,
+            'name'       => $data['name'],
+            'email'      => $data['email'],
+            'role_id'    => $data['role_id'],
+            'telefono'   => $data['telefono'] ?? null,
+            'direccion'  => $data['direccion'] ?? null,
+            'status'     => $data['status'] ?? $usuario->status,
+            'almacen_id' => $data['almacen_id'] ?? $usuario->almacen_id,
         ]);
 
         return redirect()->route('admin.usuarios.index')
