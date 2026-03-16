@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\CxpController;
 use App\Http\Controllers\Api\CajaController;
 use App\Http\Controllers\Api\KardexController;
 use App\Http\Controllers\Api\ReporteController;
+use App\Http\Controllers\Api\InventarioController;
 
 // ─────────────────────────────────────────────
 //  Pública
@@ -113,6 +114,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('caja',                             [CajaController::class, 'index']);
     Route::post('caja/movimiento',                 [CajaController::class, 'movimiento']);
     Route::post('caja/corte',                      [CajaController::class, 'corte']);
+
+    // ── Inventario ────────────────────────────────────────────
+    Route::get('inventario',                                    [InventarioController::class, 'index']);
+    Route::get('inventario/{inventario}',                       [InventarioController::class, 'show']);
+    Route::patch('inventario/{inventario}/precios',             [InventarioController::class, 'updatePrecios']);
+    Route::post('inventario/precios-masivo',                    [InventarioController::class, 'updatePreciosMasivo']);
 
     // ── Kardex ────────────────────────────────────────────────
     Route::get('kardex/lote',                      [KardexController::class, 'porLote']);
