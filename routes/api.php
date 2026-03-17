@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('ventas',                     [VentaController::class, 'index']);
     Route::post('ventas',                    [VentaController::class, 'store']);
     Route::get('ventas/{venta}',             [VentaController::class, 'show']);
+    Route::get('ventas/{venta}/ticket',      [VentaController::class, 'ticket']);
     Route::post('ventas/{venta}/cancelar',   [VentaController::class, 'cancelar']);
 
     // ── CxC ───────────────────────────────────────────────────

@@ -10,6 +10,7 @@ use App\Models\Inventario;
 use App\Models\Kardex;
 use App\Models\CtaXCobrar;
 use App\Models\Caja;
+use App\Services\TicketEscPos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -277,6 +278,111 @@ class VentaController extends Controller
                 'error'   => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Generar ticket ESC/POS para impresora térmica.
+     * GET /ventas/{venta}/ticket?cols=48
+     *
+     * Responde con application/octet-stream.
+     * El cliente envía el binario directo al puerto de la impresora.
+     */
+    public function ticket(Request $request, Venta $venta)
+    {
+        $venta->load([
+            'cliente',
+            'almacen',
+            'user',
+            'formaPago',
+            'detalles.articulo',
+            'detalles.lote',
+        ]);
+
+        $cols   = (int) $request->get('cols', 48);
+        $ticket = new TicketEscPos($cols);
+
+        $folio  = 'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT);
+        $fecha  = $venta->fecha->format('d/m/Y');
+
+        // ── Encabezado ────────────────────────────────────────────────────
+        $ticket->doubleLine()
+               ->bigCenter($venta->almacen->descripcion)
+               ->feed();
+
+        if ($venta->almacen->direccion) {
+            $ticket->center($venta->almacen->direccion);
+        }
+
+        $ciudadTel = trim(
+            ($venta->almacen->ciudad ?? '') .
+            ($venta->almacen->telefono ? '  Tel: ' . $venta->almacen->telefono : '')
+        );
+        if ($ciudadTel) {
+            $ticket->center($ciudadTel);
+        }
+
+        $ticket->doubleLine()
+               ->row('FOLIO: ' . $folio, 'FECHA: ' . $fecha)
+               ->left('CLIENTE: ' . mb_strtoupper($venta->cliente->nombre))
+               ->left('VENDEDOR: ' . mb_strtoupper($venta->user->name));
+
+        $pago = $venta->credito
+            ? 'CRÉDITO'
+            : mb_strtoupper($venta->formaPago->descripcion ?? 'CONTADO');
+        $ticket->left('PAGO: ' . $pago);
+
+        // ── Detalle ───────────────────────────────────────────────────────
+        $ticket->line();
+
+        if ($cols >= 48) {
+            $ticket->detailRow('ARTÍCULO', 'CANT', 'PRECIO', 'IMPORTE');
+        }
+
+        $ticket->line();
+
+        foreach ($venta->detalles as $det) {
+            $nombre = $det->articulo->nombre;
+            if ($det->lote && $det->lote->variedad) {
+                $nombre .= ' ' . $det->lote->variedad;
+            }
+
+            $ticket->detailRow(
+                $nombre,
+                number_format((float) $det->cantidad, 2),
+                TicketEscPos::money((float) $det->precio),
+                TicketEscPos::money((float) $det->cantidad * (float) $det->precio)
+            );
+        }
+
+        // ── Totales ───────────────────────────────────────────────────────
+        $ticket->line()
+               ->row('SUBTOTAL:', TicketEscPos::money((float) $venta->subtotal));
+
+        if ((float) $venta->impuestos > 0) {
+            $ticket->row('IMPUESTOS:', TicketEscPos::money((float) $venta->impuestos));
+        }
+
+        $ticket->doubleLine();
+
+        // Total en negrita y tamaño doble
+        $totalStr = TicketEscPos::money((float) $venta->total);
+        $pad      = max(1, $cols - mb_strlen('TOTAL:') - mb_strlen($totalStr));
+        $ticket->left(
+            TicketEscPos::BOLD_ON .
+            'TOTAL:' . str_repeat(' ', $pad) . $totalStr .
+            TicketEscPos::BOLD_OFF
+        );
+
+        // ── Pie ───────────────────────────────────────────────────────────
+        $ticket->doubleLine()
+               ->center('*** GRACIAS POR SU COMPRA ***')
+               ->doubleLine()
+               ->cut();
+
+        return response($ticket->get(), 200, [
+            'Content-Type'        => 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="' . $folio . '.bin"',
+        ]);
     }
 
     /**
