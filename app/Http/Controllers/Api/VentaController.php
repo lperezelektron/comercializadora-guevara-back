@@ -355,7 +355,10 @@ class VentaController extends Controller
         }
 
         // ── Totales ───────────────────────────────────────────────────────
+        $totalKilos = $venta->detalles->sum(fn($det) => (float) $det->cantidad);
+
         $ticket->line()
+               ->row('TOTAL DE KILOS:', number_format($totalKilos, 2))
                ->row('SUBTOTAL:', TicketEscPos::money((float) $venta->subtotal));
 
         if ((float) $venta->impuestos > 0) {

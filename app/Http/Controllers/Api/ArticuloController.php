@@ -72,6 +72,10 @@ class ArticuloController extends Controller
             'orden'        => $request->input('orden', 0),
         ]);
 
+        if ($articulo->orden === 0) {
+            $articulo->update(['orden' => $articulo->id]);
+        }
+
         return response()->json([
             'message'  => 'Artículo creado correctamente.',
             'articulo' => $articulo->load('categoria'),

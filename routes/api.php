@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\CajaController;
 use App\Http\Controllers\Api\KardexController;
 use App\Http\Controllers\Api\ReporteController;
 use App\Http\Controllers\Api\InventarioController;
+use App\Http\Controllers\Api\EmpleadoController;
 
 // ─────────────────────────────────────────────
 //  Pública
@@ -60,6 +61,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('permisos/{permission}',  [PermissionController::class, 'show']);
     Route::put('permisos/{permission}',  [PermissionController::class, 'update']);
     Route::delete('permisos/{permission}',[PermissionController::class, 'destroy']);
+
+    // ── Empleados ─────────────────────────────────────────────
+    Route::apiResource('empleados', EmpleadoController::class);
 
     // ── Catálogos ─────────────────────────────────────────────
     Route::apiResource('categorias',  CategoriaController::class);
