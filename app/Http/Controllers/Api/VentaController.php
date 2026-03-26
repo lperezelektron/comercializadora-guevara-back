@@ -85,6 +85,7 @@ class VentaController extends Controller
             'detalles.*.empaque'         => 'numeric|min:0',
             'detalles.*.precio'          => 'required|numeric|min:0',
             'detalles.*.impuestos'       => 'numeric|min:0',
+            'empleado_id'                => 'nullable|exists:empleados,id',
         ]);
 
         DB::beginTransaction();
@@ -124,6 +125,7 @@ class VentaController extends Controller
                 'cliente_id'  => $request->cliente_id,
                 'almacen_id'  => $request->almacen_id,
                 'user_id'     => auth()->id(),
+                'empleado_id' => $request->empleado_id,
                 'f_pago_id'   => $request->f_pago_id,
                 'credito'     => $request->boolean('credito', false),
                 'subtotal'    => $request->subtotal,
@@ -293,6 +295,7 @@ class VentaController extends Controller
             'cliente',
             'almacen',
             'user',
+            'empleado',
             'formaPago',
             'detalles.articulo',
             'detalles.lote',
@@ -326,6 +329,10 @@ class VentaController extends Controller
                ->left('CLIENTE: ' . mb_strtoupper($venta->cliente->nombre))
                ->left('VENDEDOR: ' . mb_strtoupper($venta->user->name));
 
+        if ($venta->empleado) {
+            $ticket->left('ENTREGO: ' . mb_strtoupper($venta->empleado->nombre));
+        }
+
         $pago = $venta->credito
             ? 'CRÉDITO'
             : mb_strtoupper($venta->formaPago->descripcion ?? 'CONTADO');
@@ -355,7 +362,10 @@ class VentaController extends Controller
         }
 
         // ── Totales ───────────────────────────────────────────────────────
+        $totalKilos = $venta->detalles->sum(fn($det) => (float) $det->cantidad);
+
         $ticket->line()
+               ->row('TOTAL DE KILOS:', number_format($totalKilos, 2))
                ->row('SUBTOTAL:', TicketEscPos::money((float) $venta->subtotal));
 
         if ((float) $venta->impuestos > 0) {

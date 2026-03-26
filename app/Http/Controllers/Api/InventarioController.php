@@ -15,7 +15,10 @@ class InventarioController extends Controller
     public function index(Request $request)
     {
         $query = Inventario::with(['almacen', 'articulo.categoria'])
-            ->orderBy('articulo_id');
+            ->join('articulos', 'inventarios.articulo_id', '=', 'articulos.id')
+            ->orderBy('articulos.orden')
+            ->orderBy('articulos.nombre')
+            ->select('inventarios.*');
 
         if ($request->filled('almacen_id')) {
             $query->where('almacen_id', $request->almacen_id);

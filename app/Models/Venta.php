@@ -14,6 +14,7 @@ class Venta extends Model
         'cliente_id',
         'almacen_id',
         'user_id',
+        'empleado_id',
         'credito',
         'subtotal',
         'impuestos',
@@ -43,6 +44,11 @@ class Venta extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function empleado()
+    {
+        return $this->belongsTo(Empleado::class);
     }
 
     public function formaPago()
