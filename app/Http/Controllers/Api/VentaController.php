@@ -85,6 +85,7 @@ class VentaController extends Controller
             'detalles.*.empaque'         => 'numeric|min:0',
             'detalles.*.precio'          => 'required|numeric|min:0',
             'detalles.*.impuestos'       => 'numeric|min:0',
+            'empleado_id'                => 'nullable|exists:empleados,id',
         ]);
 
         DB::beginTransaction();
@@ -124,6 +125,7 @@ class VentaController extends Controller
                 'cliente_id'  => $request->cliente_id,
                 'almacen_id'  => $request->almacen_id,
                 'user_id'     => auth()->id(),
+                'empleado_id' => $request->empleado_id,
                 'f_pago_id'   => $request->f_pago_id,
                 'credito'     => $request->boolean('credito', false),
                 'subtotal'    => $request->subtotal,
@@ -293,6 +295,7 @@ class VentaController extends Controller
             'cliente',
             'almacen',
             'user',
+            'empleado',
             'formaPago',
             'detalles.articulo',
             'detalles.lote',
@@ -325,6 +328,10 @@ class VentaController extends Controller
                ->row('FOLIO: ' . $folio, 'FECHA: ' . $fecha)
                ->left('CLIENTE: ' . mb_strtoupper($venta->cliente->nombre))
                ->left('VENDEDOR: ' . mb_strtoupper($venta->user->name));
+
+        if ($venta->empleado) {
+            $ticket->left('ENTREGO: ' . mb_strtoupper($venta->empleado->nombre));
+        }
 
         $pago = $venta->credito
             ? 'CRÉDITO'
