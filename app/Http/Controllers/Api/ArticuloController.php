@@ -17,6 +17,7 @@ class ArticuloController extends Controller
     {
         $query = Articulo::with('categoria')
             ->withSum('inventarios', 'existencia')
+            ->orderBy('orden')
             ->orderBy('nombre');
 
         if ($request->filled('search')) {
@@ -51,6 +52,7 @@ class ArticuloController extends Controller
             'categoria_id' => 'required|exists:categorias,id',
             'activo'       => 'boolean',
             'imagen'       => 'nullable|image|max:2048',
+            'orden'        => 'integer|min:0',
         ]);
 
         $imagenPath = null;
@@ -67,6 +69,7 @@ class ArticuloController extends Controller
             'categoria_id' => $request->categoria_id,
             'activo'       => $request->boolean('activo', true),
             'imagen'       => $imagenPath,
+            'orden'        => $request->input('orden', 0),
         ]);
 
         return response()->json([
@@ -97,9 +100,10 @@ class ArticuloController extends Controller
             'categoria_id' => 'sometimes|required|exists:categorias,id',
             'activo'       => 'boolean',
             'imagen'       => 'nullable|image|max:2048',
+            'orden'        => 'integer|min:0',
         ]);
 
-        $data = $request->only('nombre', 'nombre_corto', 'unidad', 'categoria_id', 'activo');
+        $data = $request->only('nombre', 'nombre_corto', 'unidad', 'categoria_id', 'activo', 'orden');
 
         if ($request->hasFile('imagen')) {
             // Eliminar imagen anterior
@@ -145,5 +149,25 @@ class ArticuloController extends Controller
             'inventarios' => $inventarios,
             'stock_total' => $inventarios->sum('existencia'),
         ]);
+    }
+
+    /**
+     * Actualiza el campo `orden` de múltiples artículos en una sola llamada.
+     * POST /articulos/reordenar
+     * Body: { "orden": [{"id": 1, "orden": 0}, {"id": 2, "orden": 1}, ...] }
+     */
+    public function reordenar(Request $request)
+    {
+        $request->validate([
+            'orden'          => 'required|array|min:1',
+            'orden.*.id'     => 'required|exists:articulos,id',
+            'orden.*.orden'  => 'required|integer|min:0',
+        ]);
+
+        foreach ($request->orden as $item) {
+            Articulo::where('id', $item['id'])->update(['orden' => $item['orden']]);
+        }
+
+        return response()->json(['message' => 'Orden actualizado correctamente.']);
     }
 }

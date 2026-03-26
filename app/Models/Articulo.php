@@ -17,6 +17,7 @@ class Articulo extends Model
         'categoria_id',
         'activo',
         'imagen',
+        'orden',
     ];
 
     protected $casts = [

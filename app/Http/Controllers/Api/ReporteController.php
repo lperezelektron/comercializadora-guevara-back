@@ -136,6 +136,7 @@ class ReporteController extends Controller
             ->when($request->filled('almacen_id'), fn($q) => $q->where('inventario.almacen_id', $request->almacen_id))
             ->when($request->filled('categoria_id'), fn($q) => $q->where('articulos.categoria_id', $request->categoria_id))
             ->orderBy('categorias.descripcion')
+            ->orderBy('articulos.orden')
             ->orderBy('articulos.nombre');
 
         $resultado = $query->get();
