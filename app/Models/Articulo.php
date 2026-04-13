@@ -14,6 +14,7 @@ class Articulo extends Model
         'nombre',
         'nombre_corto',
         'unidad',
+        'unidades_mayoreo',
         'categoria_id',
         'activo',
         'imagen',
@@ -21,7 +22,8 @@ class Articulo extends Model
     ];
 
     protected $casts = [
-        'activo' => 'boolean',
+        'activo'           => 'boolean',
+        'unidades_mayoreo' => 'decimal:2',
     ];
 
     protected $appends = ['imagen_url'];

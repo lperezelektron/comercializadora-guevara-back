@@ -299,18 +299,54 @@ class VentaController extends Controller
             'formaPago',
             'detalles.articulo',
             'detalles.lote',
+            'ctaPorCobrar',
         ]);
 
-        $cols   = (int) $request->get('cols', 48);
+        $cols   = (int) $request->get('cols', 42);
+        $folio  = 'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT);
         $ticket = new TicketEscPos($cols);
 
-        $folio  = 'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT);
-        $fecha  = $venta->fecha->format('d/m/Y');
+        // ── Ticket original (+ Pagaré si es crédito) ─────────────────────
+        $this->buildCuerpoTicket($venta, $ticket, $cols);
+        $ticket->doubleLine()
+               ->center('*** GRACIAS POR SU COMPRA ***')
+               ->doubleLine();
+
+        if ($venta->credito) {
+            $this->buildPagare($venta, $ticket, $cols);
+        }
+
+        $ticket->cut($venta->credito); // parcial si sigue la copia
+
+        // ── Copia (solo ventas a crédito) ────────────────────────────────
+        if ($venta->credito) {
+            $this->buildCuerpoTicket($venta, $ticket, $cols, 'COPIA');
+            $ticket->doubleLine()
+                   ->center('*** GRACIAS POR SU COMPRA ***')
+                   ->doubleLine()
+                   ->cut();
+        }
+
+        return response($ticket->get(), 200, [
+            'Content-Type'        => 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="' . $folio . '.bin"',
+        ]);
+    }
+
+    /** Imprime el cuerpo completo del ticket (encabezado, detalle y totales). */
+    private function buildCuerpoTicket(Venta $venta, TicketEscPos $ticket, int $cols, string $etiqueta = ''): void
+    {
+        $folio = 'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT);
+        $fecha = $venta->fecha->format('d/m/Y');
 
         // ── Encabezado ────────────────────────────────────────────────────
         $ticket->doubleLine()
                ->bigCenter($venta->almacen->descripcion)
                ->feed();
+
+        if ($etiqueta) {
+            $ticket->center('-- ' . $etiqueta . ' --', true);
+        }
 
         if ($venta->almacen->direccion) {
             $ticket->center($venta->almacen->direccion);
@@ -341,7 +377,7 @@ class VentaController extends Controller
         // ── Detalle ───────────────────────────────────────────────────────
         $ticket->line();
 
-        if ($cols >= 48) {
+        if ($cols >= 42) {
             $ticket->detailRow('ARTÍCULO', 'CANT', 'PRECIO', 'IMPORTE');
         }
 
@@ -374,7 +410,6 @@ class VentaController extends Controller
 
         $ticket->doubleLine();
 
-        // Total en negrita y tamaño doble
         $totalStr = TicketEscPos::money((float) $venta->total);
         $pad      = max(1, $cols - mb_strlen('TOTAL:') - mb_strlen($totalStr));
         $ticket->left(
@@ -382,17 +417,40 @@ class VentaController extends Controller
             'TOTAL:' . str_repeat(' ', $pad) . $totalStr .
             TicketEscPos::BOLD_OFF
         );
+    }
 
-        // ── Pie ───────────────────────────────────────────────────────────
+    /** Imprime el pagaré para ventas a crédito. */
+    private function buildPagare(Venta $venta, TicketEscPos $ticket, int $cols): void
+    {
+        $empresa    = mb_strtoupper($venta->almacen->descripcion);
+        $total      = TicketEscPos::money((float) $venta->total);
+        $vencimiento = $venta->ctaPorCobrar
+            ? $venta->ctaPorCobrar->vencimiento->format('d/m/Y')
+            : '___/___/______';
+
+        $texto =
+            'Por este pagaré me (nos) obligo (amos) a pagar solidaria, ' .
+            'mancomunada, e incondicionalmente a la orden de: ' . $empresa . ' ' .
+            'la cantidad de: ' . $total . ' ' .
+            'el día ' . $vencimiento . ' ' .
+            'por haber recibido a mi entera satisfacción la mercancia descrita. ' .
+            'De no ser pagado el vencimiento estipula causará un interes del 4% ' .
+            'mensual apartir de la fecha del presente documento.';
+
         $ticket->doubleLine()
-               ->center('*** GRACIAS POR SU COMPRA ***')
-               ->doubleLine()
-               ->cut();
+               ->center('P A G A R É', true)
+               ->doubleLine();
 
-        return response($ticket->get(), 200, [
-            'Content-Type'        => 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="' . $folio . '.bin"',
-        ]);
+        foreach (explode("\n", wordwrap($texto, $cols, "\n", false)) as $linea) {
+            $ticket->left($linea);
+        }
+
+        $ticket->feed(3)
+               ->left('NOMBRE: ' . str_repeat('_', max(4, $cols - 8)))
+               ->feed(2)
+               ->left('FIRMA:  ' . str_repeat('_', max(4, $cols - 8)))
+               ->feed(2)
+               ->doubleLine();
     }
 
     /**

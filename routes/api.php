@@ -67,8 +67,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Catálogos ─────────────────────────────────────────────
     Route::apiResource('categorias',  CategoriaController::class);
-    Route::post('articulos/reordenar',       [ArticuloController::class, 'reordenar']);
-    Route::apiResource('articulos',          ArticuloController::class);
+    Route::post('articulos/reordenar',          [ArticuloController::class, 'reordenar']);
+    Route::get('articulos/con-existencia',      [ArticuloController::class, 'conExistencia']);
+    Route::apiResource('articulos',             ArticuloController::class);
     Route::get('articulos/{articulo}/stock', [ArticuloController::class, 'stock']);
 
     Route::apiResource('almacenes', AlmacenController::class)

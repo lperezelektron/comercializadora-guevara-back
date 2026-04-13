@@ -81,8 +81,9 @@ class TicketEscPos
     public function detailRow(string $name, string $qty, string $price, string $total): self
     {
         // Anchos por columna según papel
-        if ($this->cols >= 48) {
-            [$wName, $wQty, $wPrice, $wTotal] = [22, 6, 10, 10];
+        if ($this->cols >= 42) {
+            $wName  = $this->cols - 26; // resto para nombre
+            [$wQty, $wPrice, $wTotal] = [6, 10, 10];
         } else {
             // 32 cols: nombre en segunda línea
             $this->left(mb_substr($name, 0, $this->cols));

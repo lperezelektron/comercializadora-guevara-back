@@ -156,6 +156,46 @@ class ArticuloController extends Controller
     }
 
     /**
+     * Artículos con existencia > 0, paginados.
+     * GET /articulos/con-existencia
+     *   ?almacen_id=1        (requerido)
+     *   &search=mango        (opcional, busca en nombre y nombre_corto)
+     *   &categoria_id=2      (opcional)
+     *   &per_page=50         (opcional, default 50)
+     *   &page=1              (opcional, default 1)
+     */
+    public function conExistencia(Request $request)
+    {
+        $request->validate([
+            'almacen_id' => 'required|exists:almacenes,id',
+        ]);
+
+        $perPage = (int) $request->get('per_page', 50);
+
+        $query = Articulo::whereHas('inventarios', function ($q) use ($request) {
+            $q->where('existencia', '>', 0)
+              ->where('almacen_id', $request->almacen_id);
+        })
+        ->with(['categoria'])
+        ->orderBy('orden')
+        ->orderBy('nombre');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('nombre', 'like', "%{$search}%")
+                  ->orWhere('nombre_corto', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('categoria_id')) {
+            $query->where('categoria_id', $request->categoria_id);
+        }
+
+        return response()->json($query->paginate($perPage));
+    }
+
+    /**
      * Actualiza el campo `orden` de múltiples artículos en una sola llamada.
      * POST /articulos/reordenar
      * Body: { "orden": [{"id": 1, "orden": 0}, {"id": 2, "orden": 1}, ...] }
