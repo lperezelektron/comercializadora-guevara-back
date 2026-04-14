@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar sesión — Limonero Admin</title>
+    <title>Iniciar sesión — scaMaria Admin</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
@@ -33,7 +33,7 @@
 <body>
 <div class="login-card card">
     <div class="card-header">
-        <h4 class="text-warning mb-1"><i class="bi bi-shield-shaded"></i>Limonero</h4>
+        <h4 class="text-warning mb-1"><i class="bi bi-shield-shaded"></i>scaMaria</h4>
         <p class="text-muted small mb-0">Panel de Administración</p>
     </div>
     <div class="card-body">

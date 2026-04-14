@@ -48,10 +48,10 @@ class CompraController extends Controller
      * Flujo:
      * 1. Crear Compra
      * 2. Por cada detalle:
-     *    a. Generar número de lote (string)
-     *    b. Crear/actualizar registro en Inventario (almacen + articulo + variedad)
-     *    c. Crear CompraDetalle con lote=string y referencia al Inventario.id
-     *    d. Registrar entrada en Kardex usando Inventario.id como lote_id
+     *    a. Buscar o crear registro en Inventario (almacen + articulo + variedad = lote)
+     *    b. Incrementar existencia del lote
+     *    c. Crear CompraDetalle vinculado al inventario_id
+     *    d. Registrar entrada en Kardex usando inventario.id como lote_id
      * 3. Si es crédito, crear CtaXPagar
      */
     public function store(Request $request)
@@ -96,10 +96,7 @@ class CompraController extends Controller
             ]);
 
             foreach ($request->detalles as $det) {
-                // 2a. Generar número de lote único (string)
-                $numeroLote = CompraDetalle::generarLote();
-
-                // 2b. Crear o actualizar registro en Inventario
+                // 2a. Buscar o crear el lote (registro de inventario)
                 //     Clave única: almacen_id + articulo_id + variedad
                 $inventario = Inventario::firstOrNew([
                     'almacen_id'  => $request->almacen_id,
@@ -107,29 +104,25 @@ class CompraController extends Controller
                     'variedad'    => $det['variedad'],
                 ]);
 
+                // 2b. Incrementar existencia y actualizar precios
                 $inventario->existencia += $det['cantidad'];
-                $inventario->costo      = $det['costo'];        // actualiza costo
-                $inventario->precio     = $det['precio'];       // actualiza precio venta
+                $inventario->costo       = $det['costo'];
+                $inventario->precio      = $det['precio'];
                 $inventario->precio_min  = $det['precio_min'];
-                $inventario->empaque    = $det['empaque'] ?? 0;
+                $inventario->empaque     = $det['empaque'] ?? 0;
                 $inventario->save();
 
-                // 2c. Crear CompraDetalle
-                //     lote = número de lote string (trazabilidad)
-                //     Se guarda también inventario_id implícitamente via Inventario.id
+                // 2c. Crear CompraDetalle vinculado al lote (inventario)
                 CompraDetalle::create([
-                    'compra_id'   => $compra->id,
-                    'lote'        => $numeroLote,
-                    'articulo_id' => $det['articulo_id'],
-                    'variedad'    => $det['variedad'],
-                    'cantidad'    => $det['cantidad'],
-                    'empaque'     => $det['empaque'] ?? 0,
-                    'costo'       => $det['costo'],
-                    'impuestos'   => $det['impuestos'] ?? 0,
+                    'compra_id'    => $compra->id,
+                    'inventario_id' => $inventario->id,
+                    'cantidad'     => $det['cantidad'],
+                    'empaque'      => $det['empaque'] ?? 0,
+                    'costo'        => $det['costo'],
+                    'impuestos'    => $det['impuestos'] ?? 0,
                 ]);
 
                 // 2d. Registrar entrada en Kardex
-                //     lote_id = Inventario.id (trazabilidad de partida)
                 Kardex::registrarEntrada([
                     'lote_id'      => $inventario->id,
                     'fecha'        => $request->fecha,
@@ -170,7 +163,7 @@ class CompraController extends Controller
 
             return response()->json([
                 'message' => 'Compra registrada correctamente.',
-                'compra'  => $compra->load(['detalles.articulo', 'proveedor']),
+                'compra'  => $compra->load(['detalles.inventario.articulo', 'proveedor']),
             ], 201);
 
         } catch (\Exception $e) {
@@ -185,7 +178,7 @@ class CompraController extends Controller
     public function show(Compra $compra)
     {
         return response()->json(
-            $compra->load(['proveedor', 'user', 'detalles.articulo', 'ctaPorPagar.detalles.formaPago'])
+            $compra->load(['proveedor', 'user', 'detalles.inventario.articulo', 'ctaPorPagar.detalles.formaPago'])
         );
     }
 
@@ -198,47 +191,39 @@ class CompraController extends Controller
             return response()->json(['message' => 'La compra ya está cancelada.'], 422);
         }
 
-        // Verificar que no haya ventas sobre estos lotes
-        $lotesVendidos = $compra->detalles()
-            ->whereHas('ventasDetalle')
-            ->exists();
+        // Verificar que cada lote tenga suficiente existencia para revertir
+        // (puede que parte del stock ya se haya vendido desde otras compras del mismo lote)
+        $detalles = $compra->detalles()->with('inventario')->get();
 
-        if ($lotesVendidos) {
-            return response()->json([
-                'message' => 'No se puede cancelar: existen ventas registradas contra esta compra.',
-            ], 422);
+        foreach ($detalles as $det) {
+            if (!$det->inventario || $det->inventario->existencia < $det->cantidad) {
+                return response()->json([
+                    'message' => 'No se puede cancelar: el stock actual es insuficiente para revertir esta compra.',
+                ], 422);
+            }
         }
 
         DB::beginTransaction();
 
         try {
-            foreach ($compra->detalles as $det) {
-                // Revertir existencia en Inventario
-                // Buscar el inventario por almacén + artículo + variedad
-                // (necesitamos el almacen_id de la compra — agregar al modelo si no existe)
-                $inventario = Inventario::join('compras_detalle', function($join) use ($det) {
-                    $join->on('inventario.articulo_id', '=', 'compras_detalle.articulo_id')
-                         ->where('compras_detalle.lote', '=', $det->lote);
-                })->select('inventario.*')->first();
+            foreach ($detalles as $det) {
+                $inventario = $det->inventario;
 
-                if ($inventario) {
-                    $inventario->existencia -= $det->cantidad;
-                    $inventario->existencia = max(0, $inventario->existencia);
-                    $inventario->save();
+                $inventario->existencia -= $det->cantidad;
+                $inventario->save();
 
-                    // Registrar salida en Kardex (reversa)
-                    Kardex::registrarSalida([
-                        'lote_id'    => $inventario->id,
-                        'fecha'      => now()->toDateString(),
-                        'movimiento' => 'Cancelación Compra',
-                        'documento'  => $compra->referencia,
-                        'cliente_id' => $compra->proveedor_id,
-                        'cantidad'   => $det->cantidad,
-                        'empaque'    => $det->empaque,
-                        'costo'      => $det->costo,
-                        'precio'     => 0,
-                    ]);
-                }
+                // Registrar salida en Kardex (reversa)
+                Kardex::registrarSalida([
+                    'lote_id'    => $inventario->id,
+                    'fecha'      => now()->toDateString(),
+                    'movimiento' => 'Cancelación Compra',
+                    'documento'  => $compra->referencia,
+                    'cliente_id' => $compra->proveedor_id,
+                    'cantidad'   => $det->cantidad,
+                    'empaque'    => $det->empaque,
+                    'costo'      => $det->costo,
+                    'precio'     => 0,
+                ]);
             }
 
             // Cancelar CxP si existe y no tiene abonos
