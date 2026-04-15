@@ -69,6 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('categorias',  CategoriaController::class);
     Route::post('articulos/reordenar',          [ArticuloController::class, 'reordenar']);
     Route::get('articulos/con-existencia',      [ArticuloController::class, 'conExistencia']);
+    Route::post('articulos/importar', [ArticuloController::class, 'importar']);
     Route::apiResource('articulos',             ArticuloController::class);
     Route::get('articulos/{articulo}/stock', [ArticuloController::class, 'stock']);
 

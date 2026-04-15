@@ -10,6 +10,8 @@ use App\Models\Articulo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class ArticuloController extends Controller
 {
@@ -213,5 +215,89 @@ class ArticuloController extends Controller
         }
 
         return response()->json(['message' => 'Orden actualizado correctamente.']);
+    }
+
+    public function importar(Request $request)
+    {
+        $request->validate([
+            'articulos' => 'required|array|min:1',
+            'articulos.*.nombre' => 'required|string|max:50',
+            'articulos.*.nombre_corto' => 'required|string|max:50',
+            'articulos.*.unidad' => 'required|string|max:5',
+            'articulos.*.categoria_id' => 'required|exists:categorias,id',
+        ]);
+
+        $insertados = [];
+        $errores = [];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($request->articulos as $index => $item) {
+                $fila = $index + 1;
+
+                $validator = Validator::make($item, [
+                    'nombre'       => 'required|string|max:50',
+                    'nombre_corto' => 'required|string|max:50',
+                    'unidad'       => 'required|string|max:5',
+                    'categoria_id' => 'required|exists:categorias,id',
+                ]);
+
+                if ($validator->fails()) {
+                    $errores[] = [
+                        'fila' => $fila,
+                        'nombre' => $item['nombre'] ?? null,
+                        'errores' => $validator->errors()->all(),
+                    ];
+                    continue;
+                }
+
+                // Evitar duplicados exactos por nombre + categoria
+                $existe = Articulo::where('nombre', $item['nombre'])
+                    ->where('categoria_id', $item['categoria_id'])
+                    ->exists();
+
+                if ($existe) {
+                    $errores[] = [
+                        'fila' => $fila,
+                        'nombre' => $item['nombre'],
+                        'errores' => ['Ya existe un artículo con ese nombre en la categoría seleccionada.'],
+                    ];
+                    continue;
+                }
+
+                $articulo = Articulo::create([
+                    'nombre'       => trim($item['nombre']),
+                    'nombre_corto' => trim($item['nombre_corto']),
+                    'unidad'       => trim($item['unidad']),
+                    'categoria_id' => $item['categoria_id'],
+                    'activo'       => true,
+                    'imagen'       => null,
+                    'orden'        => 0,
+                ]);
+
+                if ($articulo->orden === 0) {
+                    $articulo->update(['orden' => $articulo->id]);
+                }
+
+                $insertados[] = $articulo->load('categoria');
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Importación completada.',
+                'insertados' => count($insertados),
+                'errores' => $errores,
+                'articulos' => $insertados,
+            ], 201);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Ocurrió un error durante la importación.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
