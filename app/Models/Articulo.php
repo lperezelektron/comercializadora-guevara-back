@@ -31,7 +31,7 @@ class Articulo extends Model
     public function getImagenUrlAttribute(): ?string
     {
         return $this->imagen
-            ? Storage::disk('s3')->url($this->imagen)
+            ? Storage::disk('public')->url($this->imagen)
             : null;
     }
 

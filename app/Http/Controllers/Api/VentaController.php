@@ -13,6 +13,7 @@ use App\Models\Caja;
 use App\Services\TicketEscPos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class VentaController extends Controller
 {
@@ -310,6 +311,7 @@ class VentaController extends Controller
         $this->buildCuerpoTicket($venta, $ticket, $cols);
         $ticket->doubleLine()
                ->center('*** GRACIAS POR SU COMPRA ***')
+               ->center('Agradecemos su preferencia.')
                ->doubleLine();
 
         if ($venta->credito) {
@@ -323,6 +325,9 @@ class VentaController extends Controller
             $this->buildCuerpoTicket($venta, $ticket, $cols, 'COPIA');
             $ticket->doubleLine()
                    ->center('*** GRACIAS POR SU COMPRA ***')
+                   ->center('Agradecemos su preferencia.')
+                   ->doubleLine()
+                   ->center('*** C O P I A ***', true)
                    ->doubleLine()
                    ->cut();
         }
@@ -336,34 +341,36 @@ class VentaController extends Controller
     /** Imprime el cuerpo completo del ticket (encabezado, detalle y totales). */
     private function buildCuerpoTicket(Venta $venta, TicketEscPos $ticket, int $cols, string $etiqueta = ''): void
     {
-        $folio = 'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT);
-        $fecha = $venta->fecha->format('d/m/Y');
+        $folio   = 'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT);
+        $almacen = $venta->almacen;
 
         // ── Encabezado ────────────────────────────────────────────────────
-        $ticket->doubleLine()
-               ->bigCenter($venta->almacen->descripcion)
-               ->feed();
+        $ticket->doubleLine();
 
         if ($etiqueta) {
             $ticket->center('-- ' . $etiqueta . ' --', true);
         }
 
-        if ($venta->almacen->direccion) {
-            $ticket->center($venta->almacen->direccion);
-        }
+        $textLines = array_values(array_filter([
+            $almacen->descripcion,
+            $almacen->direccion ?: null,
+            trim(($almacen->ciudad ?? '') . ($almacen->telefono ? '  Tel: ' . $almacen->telefono : '')) ?: null,
+        ]));
 
-        $ciudadTel = trim(
-            ($venta->almacen->ciudad ?? '') .
-            ($venta->almacen->telefono ? '  Tel: ' . $venta->almacen->telefono : '')
-        );
-        if ($ciudadTel) {
-            $ticket->center($ciudadTel);
+        if ($almacen->imagen) {
+            try {
+                $logoData = Storage::disk('public')->get($almacen->imagen);
+                $ticket->addLogoHeader($logoData, $textLines);
+            } catch (\Throwable) {
+                $this->textHeader($ticket, $almacen);
+            }
+        } else {
+            $this->textHeader($ticket, $almacen);
         }
 
         $ticket->doubleLine()
-               ->row('FOLIO: ' . $folio, 'FECHA: ' . $fecha)
-               ->left('CLIENTE: ' . mb_strtoupper($venta->cliente->nombre))
-               ->left('VENDEDOR: ' . mb_strtoupper($venta->user->name));
+               ->row('FOLIO: ' . $folio, $venta->created_at->format('d/m/Y h:i A'))
+               ->left('CLIENTE: ' . mb_strtoupper($venta->cliente->nombre));
 
         if ($venta->empleado) {
             $ticket->left('ENTREGO: ' . mb_strtoupper($venta->empleado->nombre));
@@ -391,17 +398,17 @@ class VentaController extends Controller
 
             $ticket->detailRow(
                 $nombre,
-                number_format((float) $det->cantidad, 2),
+                self::formatCantidad((float) $det->cantidad),
                 TicketEscPos::money((float) $det->precio),
-                TicketEscPos::money((float) $det->cantidad * (float) $det->precio)
+                TicketEscPos::money(round((float) $det->cantidad * (float) $det->precio, 0))
             );
         }
 
         // ── Totales ───────────────────────────────────────────────────────
-        $totalKilos = $venta->detalles->sum(fn($det) => (float) $det->cantidad);
+        $totalArticulos = $venta->detalles->count();
 
         $ticket->line()
-               ->row('TOTAL DE KILOS:', number_format($totalKilos, 2))
+               ->row('ARTÍCULOS:', (string) $totalArticulos)
                ->row('SUBTOTAL:', TicketEscPos::money((float) $venta->subtotal));
 
         if ((float) $venta->impuestos > 0) {
@@ -417,6 +424,34 @@ class VentaController extends Controller
             'TOTAL:' . str_repeat(' ', $pad) . $totalStr .
             TicketEscPos::BOLD_OFF
         );
+    }
+
+    /** Cabecera solo texto cuando no hay logo. */
+    private function textHeader(TicketEscPos $ticket, \App\Models\Almacen $almacen): void
+    {
+        $ticket->bigCenter($almacen->descripcion)->feed();
+
+        if ($almacen->direccion) {
+            $ticket->center($almacen->direccion);
+        }
+
+        $ciudadTel = trim(
+            ($almacen->ciudad ?? '') .
+            ($almacen->telefono ? '  Tel: ' . $almacen->telefono : '')
+        );
+        if ($ciudadTel) {
+            $ticket->center($ciudadTel);
+        }
+    }
+
+    /** Muestra entero si no hay decimales, o 3 decimales si los hay. */
+    private static function formatCantidad(float $val): string
+    {
+        $rounded = round($val, 3);
+        if ($rounded == floor($rounded)) {
+            return number_format((int) $rounded, 0);
+        }
+        return number_format($rounded, 3);
     }
 
     /** Imprime el pagaré para ventas a crédito. */

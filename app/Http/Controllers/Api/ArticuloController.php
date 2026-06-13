@@ -61,7 +61,7 @@ class ArticuloController extends Controller
         if ($request->hasFile('imagen')) {
             $ext        = $request->file('imagen')->getClientOriginalExtension();
             $imagenPath = $request->file('imagen')
-                ->storeAs('articulos', Str::uuid() . '.' . $ext, 's3');
+                ->storeAs('articulos', Str::uuid() . '.' . $ext, 'public');
         }
 
         $articulo = Articulo::create([
@@ -112,13 +112,12 @@ class ArticuloController extends Controller
         $data = $request->only('nombre', 'nombre_corto', 'unidad', 'categoria_id', 'activo', 'orden');
 
         if ($request->hasFile('imagen')) {
-            // Eliminar imagen anterior
             if ($articulo->imagen) {
-                Storage::disk('s3')->delete($articulo->imagen);
+                Storage::disk('public')->delete($articulo->imagen);
             }
             $ext          = $request->file('imagen')->getClientOriginalExtension();
             $data['imagen'] = $request->file('imagen')
-                ->storeAs('articulos', Str::uuid() . '.' . $ext, 's3');
+                ->storeAs('articulos', Str::uuid() . '.' . $ext, 'public');
         }
 
         $articulo->update($data);
@@ -137,7 +136,7 @@ class ArticuloController extends Controller
         }
 
         if ($articulo->imagen) {
-            Storage::disk('s3')->delete($articulo->imagen);
+            Storage::disk('public')->delete($articulo->imagen);
         }
 
         $articulo->inventarios()->delete();
