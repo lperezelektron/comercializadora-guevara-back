@@ -132,6 +132,80 @@ class TicketEscPos
         return $this;
     }
 
+    // ── Logo / imagen ─────────────────────────────────────────────────────
+
+    /**
+     * Imprime el logo del almacén (raster ESC/POS GS v 0) seguido de las
+     * líneas de texto del encabezado.  Si GD no está disponible o la imagen
+     * es inválida lanza una excepción para que el caller use el header de texto.
+     *
+     * @param string   $imageData  Contenido binario del archivo de imagen
+     * @param string[] $textLines  Líneas de texto a imprimir debajo del logo
+     */
+    public function addLogoHeader(string $imageData, array $textLines): self
+    {
+        if (!function_exists('imagecreatefromstring')) {
+            throw new \RuntimeException('GD no disponible');
+        }
+
+        $src = @imagecreatefromstring($imageData);
+        if ($src === false) {
+            throw new \RuntimeException('Imagen inválida');
+        }
+
+        // Ancho máximo en puntos según ancho de papel
+        $maxW  = $this->cols >= 42 ? 576 : 384;
+        $maxH  = 200;
+        $origW = imagesx($src);
+        $origH = imagesy($src);
+        $scale = min($maxW / $origW, $maxH / $origH, 1.0);
+        $newW  = max(1, (int) round($origW * $scale));
+        $newH  = max(1, (int) round($origH * $scale));
+
+        $dst = imagecreatetruecolor($newW, $newH);
+        imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+        imagedestroy($src);
+
+        $widthBytes = (int) ceil($newW / 8);
+
+        // GS v 0 — raster bit image (modo normal)
+        $this->buf .= self::ALIGN_CENTER;
+        $this->buf .= "\x1D\x76\x30\x00";
+        $this->buf .= chr($widthBytes & 0xFF) . chr(($widthBytes >> 8) & 0xFF);
+        $this->buf .= chr($newH & 0xFF)       . chr(($newH >> 8) & 0xFF);
+
+        for ($y = 0; $y < $newH; $y++) {
+            for ($xb = 0; $xb < $widthBytes; $xb++) {
+                $byte = 0;
+                for ($bit = 0; $bit < 8; $bit++) {
+                    $x = $xb * 8 + $bit;
+                    if ($x < $newW) {
+                        $color = imagecolorat($dst, $x, $y);
+                        $lum   = (int)(
+                            0.299 * (($color >> 16) & 0xFF) +
+                            0.587 * (($color >> 8)  & 0xFF) +
+                            0.114 * ( $color        & 0xFF)
+                        );
+                        if ($lum < 128) {
+                            $byte |= 0x80 >> $bit;
+                        }
+                    }
+                }
+                $this->buf .= chr($byte);
+            }
+        }
+
+        imagedestroy($dst);
+        $this->buf .= self::LF;
+
+        foreach ($textLines as $line) {
+            $this->center($line);
+        }
+
+        return $this;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     public static function money(float $amount): string

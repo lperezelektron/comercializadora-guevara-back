@@ -8,6 +8,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AlmacenController extends Controller
 {
@@ -30,9 +32,18 @@ class AlmacenController extends Controller
             'ciudad'      => 'nullable|string|max:50',
             'telefono'    => 'nullable|string|max:20',
             'activo'      => 'boolean',
+            'imagen'      => 'nullable|image|max:2048',
         ]);
 
-        $almacen = Almacen::create($request->only('descripcion', 'direccion', 'ciudad', 'telefono', 'activo'));
+        $data = $request->only('descripcion', 'direccion', 'ciudad', 'telefono', 'activo');
+
+        if ($request->hasFile('imagen')) {
+            $ext = $request->file('imagen')->getClientOriginalExtension();
+            $data['imagen'] = $request->file('imagen')
+                ->storeAs('almacenes', Str::uuid() . '.' . $ext, 'public');
+        }
+
+        $almacen = Almacen::create($data);
 
         return response()->json([
             'message' => 'Almacén creado correctamente.',
@@ -58,9 +69,21 @@ class AlmacenController extends Controller
             'ciudad'      => 'nullable|string|max:50',
             'telefono'    => 'nullable|string|max:20',
             'activo'      => 'boolean',
+            'imagen'      => 'nullable|image|max:2048',
         ]);
 
-        $almacen->update($request->only('descripcion', 'direccion', 'ciudad', 'telefono', 'activo'));
+        $data = $request->only('descripcion', 'direccion', 'ciudad', 'telefono', 'activo');
+
+        if ($request->hasFile('imagen')) {
+            if ($almacen->imagen) {
+                Storage::disk('public')->delete($almacen->imagen);
+            }
+            $ext = $request->file('imagen')->getClientOriginalExtension();
+            $data['imagen'] = $request->file('imagen')
+                ->storeAs('almacenes', Str::uuid() . '.' . $ext, 'public');
+        }
+
+        $almacen->update($data);
 
         return response()->json([
             'message' => 'Almacén actualizado.',
@@ -74,6 +97,10 @@ class AlmacenController extends Controller
             return response()->json([
                 'message' => 'No se puede eliminar: tiene existencias registradas.',
             ], 422);
+        }
+
+        if ($almacen->imagen) {
+            Storage::disk('public')->delete($almacen->imagen);
         }
 
         $almacen->inventarios()->delete();

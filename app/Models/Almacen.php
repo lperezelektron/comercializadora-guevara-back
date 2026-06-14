@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Almacen extends Model
 {
@@ -17,11 +18,21 @@ class Almacen extends Model
         'ciudad',
         'telefono',
         'activo',
+        'imagen',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
     ];
+
+    protected $appends = ['imagen_url'];
+
+    public function getImagenUrlAttribute(): ?string
+    {
+        return $this->imagen
+            ? Storage::disk('public')->url($this->imagen)
+            : null;
+    }
 
     // Relaciones
     public function inventarios()

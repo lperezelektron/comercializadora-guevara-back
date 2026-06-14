@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\KardexController;
 use App\Http\Controllers\Api\ReporteController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\EmpleadoController;
+use App\Http\Controllers\Api\EmpaqueController;
+use App\Http\Controllers\Api\EmpaqueMovimientoController;
 
 // ─────────────────────────────────────────────
 //  Pública
@@ -133,6 +135,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('kardex/lote',                      [KardexController::class, 'porLote']);
     Route::get('kardex/articulo',                  [KardexController::class, 'porArticulo']);
     Route::post('kardex/ajuste',                   [KardexController::class, 'ajuste']);
+
+    // ── Empaques ──────────────────────────────────────────────────
+    // IMPORTANTE: ruta estática /empaques/saldos ANTES del resource
+    Route::get('empaques/saldos',                         [EmpaqueController::class, 'saldos']);
+    Route::apiResource('empaques', EmpaqueController::class);
+
+    Route::get('empaque-movimientos',                              [EmpaqueMovimientoController::class, 'index']);
+    Route::post('empaque-movimientos',                             [EmpaqueMovimientoController::class, 'store']);
+    Route::get('empaque-movimientos/{empaqueMovimiento}',          [EmpaqueMovimientoController::class, 'show']);
+    Route::get('empaque-movimientos/{empaqueMovimiento}/ticket',   [EmpaqueMovimientoController::class, 'ticket']);
 
     // ── Reportes ──────────────────────────────────────────────
     Route::prefix('reportes')->group(function () {
