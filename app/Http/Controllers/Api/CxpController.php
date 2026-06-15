@@ -38,7 +38,7 @@ class CxpController extends Controller
     public function show(CtaXPagar $ctaXPagar)
     {
         return response()->json(
-            $ctaXPagar->load(['proveedor', 'compra.detalles.articulo', 'detalles.formaPago'])
+            $ctaXPagar->load(['proveedor', 'compra.detalles.inventario.articulo', 'detalles.formaPago'])
         );
     }
 
