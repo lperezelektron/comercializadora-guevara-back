@@ -99,6 +99,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Ventas ────────────────────────────────────────────────
     // IMPORTANTE: ruta estática ANTES del resource para evitar conflicto con {venta}
     Route::get('ventas/lotes-disponibles',   [VentaController::class, 'lotesDisponibles']);
+    Route::get('ventas/reportes/por-articulo', [VentaController::class, 'resumenPorArticulo']);
+    Route::get('ventas/reportes/formas-pago',  [VentaController::class, 'resumenFormasPago']);
     Route::get('ventas',                     [VentaController::class, 'index']);
     Route::post('ventas',                    [VentaController::class, 'store']);
     Route::get('ventas/{venta}',             [VentaController::class, 'show']);

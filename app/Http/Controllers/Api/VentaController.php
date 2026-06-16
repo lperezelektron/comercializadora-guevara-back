@@ -513,4 +513,96 @@ class VentaController extends Controller
 
         return response()->json($query->orderBy('articulo_id')->get());
     }
+
+    /**
+     * Resumen de ventas por artículo en un rango de fechas.
+     * GET /ventas/reportes/por-articulo?fecha_inicio=&fecha_fin=&almacen_id=
+     */
+    public function resumenPorArticulo(Request $request)
+    {
+        $request->validate([
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            'almacen_id'   => 'nullable|exists:almacenes,id',
+        ]);
+
+        $articulos = VentaDetalle::join('ventas', 'ventas_detalle.venta_id', '=', 'ventas.id')
+            ->join('articulos', 'ventas_detalle.articulo_id', '=', 'articulos.id')
+            ->whereBetween('ventas.fecha', [$request->fecha_inicio, $request->fecha_fin])
+            ->when($request->filled('almacen_id'), fn($q) => $q->where('ventas.almacen_id', $request->almacen_id))
+            ->selectRaw('
+                articulos.id,
+                articulos.nombre,
+                articulos.unidad,
+                SUM(ventas_detalle.cantidad) as cantidad,
+                SUM(ventas_detalle.cantidad * ventas_detalle.precio) as subtotal,
+                SUM(ventas_detalle.impuestos) as impuestos,
+                SUM(ventas_detalle.cantidad * ventas_detalle.precio + ventas_detalle.impuestos) as total
+            ')
+            ->groupBy('articulos.id', 'articulos.nombre', 'articulos.unidad')
+            ->orderBy('articulos.nombre')
+            ->get();
+
+        return response()->json([
+            'fecha_inicio' => $request->fecha_inicio,
+            'fecha_fin'    => $request->fecha_fin,
+            'articulos'    => $articulos,
+            'totales'      => [
+                'cantidad'  => $articulos->sum('cantidad'),
+                'subtotal'  => $articulos->sum('subtotal'),
+                'impuestos' => $articulos->sum('impuestos'),
+                'total'     => $articulos->sum('total'),
+            ],
+        ]);
+    }
+
+    /**
+     * Resumen de ventas por forma de pago (incluye crédito) en un rango de fechas.
+     * GET /ventas/reportes/formas-pago?fecha_inicio=&fecha_fin=&almacen_id=
+     */
+    public function resumenFormasPago(Request $request)
+    {
+        $request->validate([
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            'almacen_id'   => 'nullable|exists:almacenes,id',
+        ]);
+
+        $contado = Venta::join('forma_pago', 'ventas.f_pago_id', '=', 'forma_pago.id')
+            ->where('ventas.credito', false)
+            ->whereBetween('ventas.fecha', [$request->fecha_inicio, $request->fecha_fin])
+            ->when($request->filled('almacen_id'), fn($q) => $q->where('ventas.almacen_id', $request->almacen_id))
+            ->selectRaw('
+                forma_pago.id as f_pago_id,
+                forma_pago.descripcion as forma_pago,
+                COUNT(*) as tickets,
+                SUM(ventas.total) as total
+            ')
+            ->groupBy('forma_pago.id', 'forma_pago.descripcion')
+            ->orderBy('forma_pago.descripcion')
+            ->get();
+
+        $credito = Venta::where('credito', true)
+            ->whereBetween('fecha', [$request->fecha_inicio, $request->fecha_fin])
+            ->when($request->filled('almacen_id'), fn($q) => $q->where('almacen_id', $request->almacen_id))
+            ->selectRaw('COUNT(*) as tickets, SUM(total) as total')
+            ->first();
+
+        $formasPago = $contado->push((object) [
+            'f_pago_id'  => null,
+            'forma_pago' => 'Crédito',
+            'tickets'    => (int) ($credito->tickets ?? 0),
+            'total'      => (float) ($credito->total ?? 0),
+        ]);
+
+        return response()->json([
+            'fecha_inicio' => $request->fecha_inicio,
+            'fecha_fin'    => $request->fecha_fin,
+            'formas_pago'  => $formasPago,
+            'totales'      => [
+                'tickets' => $formasPago->sum('tickets'),
+                'total'   => $formasPago->sum('total'),
+            ],
+        ]);
+    }
 }
