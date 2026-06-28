@@ -489,6 +489,72 @@ class VentaController extends Controller
     }
 
     /**
+     * Resumen diario: efectivo, otras formas de pago, crédito y recuperado.
+     * GET /ventas/reportes/diario?fecha=&almacen_id=
+     */
+    public function resumenDiario(Request $request)
+    {
+        $request->validate([
+            'fecha'      => 'required|date',
+            'almacen_id' => 'nullable|exists:almacenes,id',
+        ]);
+
+        $fecha     = $request->fecha;
+        $almacenId = $request->filled('almacen_id') ? $request->almacen_id : null;
+
+        // Ventas de contado agrupadas por forma de pago
+        $contadoRows = Venta::join('forma_pago', 'ventas.f_pago_id', '=', 'forma_pago.id')
+            ->where('ventas.credito', false)
+            ->whereDate('ventas.fecha', $fecha)
+            ->when($almacenId, fn($q) => $q->where('ventas.almacen_id', $almacenId))
+            ->selectRaw('
+                forma_pago.id as f_pago_id,
+                forma_pago.descripcion as forma_pago,
+                COUNT(*) as tickets,
+                SUM(ventas.total) as total
+            ')
+            ->groupBy('forma_pago.id', 'forma_pago.descripcion')
+            ->get();
+
+        $efectivoRow = $contadoRows->first(fn($r) => strtolower($r->forma_pago) === 'efectivo');
+        $otrasRows   = $contadoRows->filter(fn($r) => strtolower($r->forma_pago) !== 'efectivo')->values();
+
+        $totalEfectivo   = (float) ($efectivoRow?->total ?? 0);
+        $ticketsEfectivo = (int)   ($efectivoRow?->tickets ?? 0);
+        $totalOtras      = (float)  $otrasRows->sum('total');
+        $totalContado    = $totalEfectivo + $totalOtras;
+
+        // Ventas a crédito del día
+        $creditoRow = Venta::where('credito', true)
+            ->whereDate('fecha', $fecha)
+            ->when($almacenId, fn($q) => $q->where('almacen_id', $almacenId))
+            ->selectRaw('COUNT(*) as tickets, SUM(total) as total')
+            ->first();
+
+        $totalCredito   = (float) ($creditoRow?->total ?? 0);
+        $ticketsCredito = (int)   ($creditoRow?->tickets ?? 0);
+
+        // Recuperado del día: abonos de CxC registrados en la fecha
+        $recuperadoQuery = \App\Models\CxcDetalle::whereDate('fecha', $fecha);
+        if ($almacenId) {
+            $recuperadoQuery->whereHas('ctaXCobrar.venta', fn($q) => $q->where('almacen_id', $almacenId));
+        }
+        $totalRecuperado = (float) $recuperadoQuery->sum('importe');
+        $numAbonos       = (int)   (clone $recuperadoQuery)->count();
+
+        return response()->json([
+            'fecha'                   => $fecha,
+            'efectivo'                => ['total' => $totalEfectivo,   'tickets' => $ticketsEfectivo],
+            'otras_formas_pago'       => $otrasRows,
+            'total_otras_formas_pago' => $totalOtras,
+            'subtotal_contado'        => $totalContado,
+            'credito'                 => ['total' => $totalCredito,    'tickets' => $ticketsCredito],
+            'total_venta_dia'         => $totalContado + $totalCredito,
+            'recuperado'              => ['total' => $totalRecuperado, 'abonos' => $numAbonos],
+        ]);
+    }
+
+    /**
      * Consultar lotes disponibles para venta
      * (Inventario con existencia > 0 filtrado por almacén y artículo)
      */

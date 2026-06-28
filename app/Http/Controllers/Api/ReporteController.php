@@ -13,6 +13,9 @@ use App\Models\Inventario;
 use App\Models\CtaXCobrar;
 use App\Models\CtaXPagar;
 use App\Models\Caja;
+use App\Models\Kardex;
+use App\Models\CxcDetalle;
+use App\Models\CxpDetalle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -146,6 +149,134 @@ class ReporteController extends Controller
             'total_costo'   => $resultado->sum('valor_costo'),
             'total_precio'  => $resultado->sum('valor_precio'),
             'total_lineas'  => $resultado->count(),
+        ]);
+    }
+
+    /**
+     * Estado de Resultados por período.
+     * GET /reportes/estado-resultados?fecha_inicio=&fecha_fin=&almacen_id=
+     */
+    public function estadoResultados(Request $request)
+    {
+        $request->validate([
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+            'almacen_id'   => 'nullable|exists:almacenes,id',
+        ]);
+
+        $fi        = $request->fecha_inicio;
+        $ff        = $request->fecha_fin;
+        $almacenId = $request->filled('almacen_id') ? $request->almacen_id : null;
+
+        // ── 1. Ventas del período ─────────────────────────────────────────
+        $ventasBaseQ = Venta::whereBetween('fecha', [$fi, $ff])
+            ->when($almacenId, fn($q) => $q->where('almacen_id', $almacenId));
+
+        $ventasContado = (float) (clone $ventasBaseQ)->where('credito', false)->sum('total');
+        $ventasCredito = (float) (clone $ventasBaseQ)->where('credito', true)->sum('total');
+        $totalVentas   = $ventasContado + $ventasCredito;
+        $ticketsTotal  = (int)   (clone $ventasBaseQ)->count();
+
+        // ── 2. Crédito pendiente del período (aún sin cobrar) ─────────────
+        $cxcPendQ = CtaXCobrar::where('saldo', '>', 0)
+            ->whereHas('venta', function ($q) use ($fi, $ff, $almacenId) {
+                $q->whereBetween('fecha', [$fi, $ff]);
+                if ($almacenId) $q->where('almacen_id', $almacenId);
+            });
+
+        $creditoPendiente = (float) (clone $cxcPendQ)->sum('saldo');
+        $numCuentasPend   = (int)   (clone $cxcPendQ)->count();
+
+        // ── 3. Recuperación (abonos en el período de ventas de otros períodos) ─
+        $recupQ = CxcDetalle::whereBetween('fecha', [$fi, $ff])
+            ->whereHas('ctaXCobrar.venta', function ($q) use ($fi, $ff, $almacenId) {
+                $q->where(fn($i) => $i->where('fecha', '<', $fi)->orWhere('fecha', '>', $ff));
+                if ($almacenId) $q->where('almacen_id', $almacenId);
+            });
+
+        $totalRecuperacion = (float) (clone $recupQ)->sum('importe');
+        $numRecuperacion   = (int)   (clone $recupQ)->count();
+
+        // ── 4. Costo de ventas del período (Kardex salidas tipo Venta) ────
+        $costoQ = Kardex::where('tipo', 'salida')
+            ->where('movimiento', 'Venta')
+            ->whereBetween('fecha', [$fi, $ff]);
+
+        if ($almacenId) {
+            $costoQ->whereHas('lote', fn($q) => $q->where('almacen_id', $almacenId));
+        }
+
+        $costoVentas = (float) ($costoQ->selectRaw('SUM(cantidad * costo) as total')->value('total') ?? 0);
+
+        // ── 5. Compras del período pagadas ───────────────────────────────
+        $comprasBaseQ = Compra::whereBetween('fecha', [$fi, $ff])
+            ->when($almacenId, fn($q) => $q->where('almacen_id', $almacenId));
+
+        $comprasContado       = (float) (clone $comprasBaseQ)->whereDoesntHave('ctaPorPagar')->sum('total');
+        $comprasCreditoSaldado = (float) (clone $comprasBaseQ)
+            ->whereHas('ctaPorPagar', fn($q) => $q->where('saldo', 0))
+            ->sum('total');
+        $totalComprasPagadas  = $comprasContado + $comprasCreditoSaldado;
+        $numComprasPagadas    = (int) (clone $comprasBaseQ)
+            ->where(fn($q) => $q
+                ->whereDoesntHave('ctaPorPagar')
+                ->orWhereHas('ctaPorPagar', fn($i) => $i->where('saldo', 0)))
+            ->count();
+
+        // ── 6. Pagos a proveedores de compras de otros períodos ──────────
+        $pagProvQ = CxpDetalle::whereBetween('fecha', [$fi, $ff])
+            ->where('tipo', 'abono')
+            ->whereHas('ctaXPagar.compra', function ($q) use ($fi, $ff, $almacenId) {
+                $q->where(fn($i) => $i->where('fecha', '<', $fi)->orWhere('fecha', '>', $ff));
+                if ($almacenId) $q->where('almacen_id', $almacenId);
+            });
+
+        $totalPagosProveedores = (float) (clone $pagProvQ)->sum('importe');
+        $numPagosProveedores   = (int)   (clone $pagProvQ)->count();
+
+        // ── 7. Gastos adicionales (salidas manuales de caja) ─────────────
+        $gastosQ = Caja::where('tipo', 'salida')
+            ->whereBetween('fecha', [$fi, $ff])
+            ->when($almacenId, fn($q) => $q->where('almacen_id', $almacenId))
+            ->where('referencia', 'not like', 'Compra #%')
+            ->where('referencia', 'not like', 'Pago CxP #%')
+            ->where('referencia', 'not like', 'Cancelación VTA%');
+
+        $gastosRows  = $gastosQ->select(['fecha', 'referencia', 'cantidad'])->orderBy('fecha')->get();
+        $totalGastos = (float) $gastosRows->sum('cantidad');
+
+        return response()->json([
+            'fecha_inicio'      => $fi,
+            'fecha_fin'         => $ff,
+            'ventas_periodo'    => [
+                'total'   => $totalVentas,
+                'tickets' => $ticketsTotal,
+                'contado' => $ventasContado,
+                'credito' => $ventasCredito,
+            ],
+            'credito_pendiente' => [
+                'total'       => $creditoPendiente,
+                'num_cuentas' => $numCuentasPend,
+            ],
+            'recuperacion'      => [
+                'total'  => $totalRecuperacion,
+                'abonos' => $numRecuperacion,
+            ],
+            'costo_ventas'      => $costoVentas,
+            'compras_pagadas'   => [
+                'total'           => $totalComprasPagadas,
+                'contado'         => $comprasContado,
+                'credito_saldado' => $comprasCreditoSaldado,
+                'num_compras'     => $numComprasPagadas,
+            ],
+            'pagos_proveedores' => [
+                'total'     => $totalPagosProveedores,
+                'num_pagos' => $numPagosProveedores,
+            ],
+            'gastos_adicionales' => [
+                'total'       => $totalGastos,
+                'movimientos' => $gastosRows,
+            ],
         ]);
     }
 

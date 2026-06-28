@@ -101,6 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('ventas/lotes-disponibles',   [VentaController::class, 'lotesDisponibles']);
     Route::get('ventas/reportes/por-articulo', [VentaController::class, 'resumenPorArticulo']);
     Route::get('ventas/reportes/formas-pago',  [VentaController::class, 'resumenFormasPago']);
+    Route::get('ventas/reportes/diario',       [VentaController::class, 'resumenDiario']);
     Route::get('ventas',                     [VentaController::class, 'index']);
     Route::post('ventas',                    [VentaController::class, 'store']);
     Route::get('ventas/{venta}',             [VentaController::class, 'show']);
@@ -155,5 +156,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('top-articulos',                [ReporteController::class, 'topArticulos']);
         Route::get('inventario',                   [ReporteController::class, 'inventarioValorizado']);
         Route::get('utilidad',                     [ReporteController::class, 'utilidad']);
+        Route::get('estado-resultados',            [ReporteController::class, 'estadoResultados']);
     });
 });
