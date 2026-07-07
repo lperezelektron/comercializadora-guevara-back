@@ -524,15 +524,20 @@ class VentaController extends Controller
         $totalOtras      = (float)  $otrasRows->sum('total');
         $totalContado    = $totalEfectivo + $totalOtras;
 
-        // Ventas a crédito del día
-        $creditoRow = Venta::where('credito', true)
+        // Ventas a crédito del día (con detalle de cliente/total para el desglose)
+        $ventasCredito = Venta::with('cliente:id,nombre')
+            ->where('credito', true)
             ->whereDate('fecha', $fecha)
             ->when($almacenId, fn($q) => $q->where('almacen_id', $almacenId))
-            ->selectRaw('COUNT(*) as tickets, SUM(total) as total')
-            ->first();
+            ->get();
 
-        $totalCredito   = (float) ($creditoRow?->total ?? 0);
-        $ticketsCredito = (int)   ($creditoRow?->tickets ?? 0);
+        $totalCredito   = (float) $ventasCredito->sum('total');
+        $ticketsCredito = $ventasCredito->count();
+
+        $ticketsCreditoDetalle = $ventasCredito->map(fn($v) => [
+            'cliente' => $v->cliente->nombre ?? null,
+            'total'   => (float) $v->total,
+        ])->values();
 
         // Recuperado del día: abonos de CxC registrados en la fecha
         $recuperadoQuery = \App\Models\CxcDetalle::whereDate('fecha', $fecha);
@@ -548,7 +553,7 @@ class VentaController extends Controller
             'otras_formas_pago'       => $otrasRows,
             'total_otras_formas_pago' => $totalOtras,
             'subtotal_contado'        => $totalContado,
-            'credito'                 => ['total' => $totalCredito,    'tickets' => $ticketsCredito],
+            'credito'                 => ['total' => $totalCredito, 'tickets' => $ticketsCredito, 'ventas' => $ticketsCreditoDetalle],
             'total_venta_dia'         => $totalContado + $totalCredito,
             'recuperado'              => ['total' => $totalRecuperado, 'abonos' => $numAbonos],
         ]);

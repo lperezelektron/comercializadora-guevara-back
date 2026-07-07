@@ -146,6 +146,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('empaque-movimientos',                              [EmpaqueMovimientoController::class, 'index']);
     Route::post('empaque-movimientos',                             [EmpaqueMovimientoController::class, 'store']);
+    // IMPORTANTE: ruta estática /reporte/ticket ANTES del wildcard {empaqueMovimiento}
+    Route::get('empaque-movimientos/reporte/ticket',               [EmpaqueMovimientoController::class, 'reporteTicket']);
     Route::get('empaque-movimientos/{empaqueMovimiento}',          [EmpaqueMovimientoController::class, 'show']);
     Route::get('empaque-movimientos/{empaqueMovimiento}/ticket',   [EmpaqueMovimientoController::class, 'ticket']);
 

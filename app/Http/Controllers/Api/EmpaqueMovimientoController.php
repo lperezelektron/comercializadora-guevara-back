@@ -230,4 +230,154 @@ class EmpaqueMovimientoController extends Controller
             'Content-Disposition' => 'inline; filename="' . $empaqueMovimiento->folio . '.bin"',
         ]);
     }
+
+    /**
+     * Generar ticket ESC/POS con el reporte de movimientos de un cliente
+     * dentro de un rango de fechas (mismo filtro que index()).
+     * GET /empaque-movimientos/reporte/ticket?cliente_id=&empaque_id=&fecha_inicio=&fecha_fin=&cols=
+     */
+    public function reporteTicket(Request $request)
+    {
+        $request->validate([
+            'cliente_id'   => 'required|exists:clientes,id',
+            'empaque_id'   => 'nullable|exists:empaques,id',
+            'fecha_inicio' => 'required|date',
+            'fecha_fin'    => 'required|date',
+        ]);
+
+        $query = EmpaqueMovimiento::with(['empaque', 'cliente'])
+            ->where('cliente_id', $request->cliente_id)
+            ->whereDate('fecha', '>=', $request->fecha_inicio)
+            ->whereDate('fecha', '<=', $request->fecha_fin)
+            ->orderBy('fecha')
+            ->orderBy('id');
+
+        if ($request->filled('empaque_id')) {
+            $query->where('empaque_id', $request->empaque_id);
+        }
+
+        $movimientos = $query->get();
+        $cliente     = $movimientos->first()->cliente
+            ?? \App\Models\Cliente::findOrFail($request->cliente_id);
+
+        $empaque = $request->filled('empaque_id')
+            ? Empaque::find($request->empaque_id)
+            : $movimientos->first()->empaque ?? null;
+
+        $cols    = (int) $request->get('cols', 42);
+        $ticket  = new TicketEscPos($cols);
+        $almacen = Almacen::where('activo', true)->first();
+
+        // ── Encabezado (logo o texto) ─────────────────────────────────────
+        $ticket->doubleLine();
+
+        if ($almacen) {
+            $textLines = array_values(array_filter([
+                $almacen->descripcion,
+                $almacen->direccion ?: null,
+                trim(($almacen->ciudad ?? '') . ($almacen->telefono ? '  Tel: ' . $almacen->telefono : '')) ?: null,
+            ]));
+
+            $printTextHeader = function () use ($ticket, $almacen) {
+                $ticket->bigCenter($almacen->descripcion)->feed();
+                if ($almacen->direccion) {
+                    $ticket->center($almacen->direccion);
+                }
+                $ciudadTel = trim(($almacen->ciudad ?? '') . ($almacen->telefono ? '  Tel: ' . $almacen->telefono : ''));
+                if ($ciudadTel) {
+                    $ticket->center($ciudadTel);
+                }
+            };
+
+            if ($almacen->imagen) {
+                try {
+                    $logoData = Storage::disk('public')->get($almacen->imagen);
+                    $ticket->addLogoHeader($logoData, $textLines);
+                } catch (\Throwable) {
+                    $printTextHeader();
+                }
+            } else {
+                $printTextHeader();
+            }
+        }
+
+        // ── Datos del reporte ───────────────────────────────────────────────
+        $fechaInicio = \Carbon\Carbon::parse($request->fecha_inicio)->format('d/m/Y');
+        $fechaFin    = \Carbon\Carbon::parse($request->fecha_fin)->format('d/m/Y');
+
+        $ticket->doubleLine()
+               ->center('REPORTE DE MOVIMIENTOS', true)
+               ->center('DE EMPAQUE', true)
+               ->doubleLine()
+               ->left('CLIENTE: ' . mb_strtoupper($cliente->nombre))
+               ->row('PERIODO:', "{$fechaInicio} - {$fechaFin}");
+
+        if ($empaque) {
+            $ticket->row('EMPAQUE:', mb_strtoupper($empaque->descripcion));
+        }
+
+        // ── Tabla de movimientos ─────────────────────────────────────────────
+        // Columnas: Fecha | Notas | Tipo | Cantidad
+        $wFecha = 9;
+        $wTipo  = 4;
+        $wCant  = 6;
+        $wNotas = max(4, $cols - $wFecha - $wTipo - $wCant);
+
+        $header = str_pad('FECHA', $wFecha)
+                . str_pad('NOTAS', $wNotas)
+                . str_pad('TIPO', $wTipo)
+                . str_pad('CANT', $wCant, ' ', STR_PAD_LEFT);
+
+        $ticket->line()->left($header)->line();
+
+        $totalSalidas  = 0;
+        $totalEntradas = 0;
+
+        foreach ($movimientos as $mov) {
+            $fecha = \Carbon\Carbon::parse($mov->fecha)->format('d/m/y');
+            $tipo  = $mov->tipo === 'salida' ? 'SAL' : 'ENT';
+            $cant  = (int) $mov->cantidad;
+            $notas = mb_substr((string) $mov->notas, 0, $wNotas);
+
+            if ($mov->tipo === 'salida') {
+                $totalSalidas += $cant;
+            } else {
+                $totalEntradas += $cant;
+            }
+
+            $line = str_pad($fecha, $wFecha)
+                  . str_pad($notas, $wNotas)
+                  . str_pad($tipo, $wTipo)
+                  . str_pad((string) $cant, $wCant, ' ', STR_PAD_LEFT);
+
+            $ticket->left($line);
+        }
+
+        if ($movimientos->isEmpty()) {
+            $ticket->center('Sin movimientos en el periodo.');
+        }
+
+        // ── Totales ──────────────────────────────────────────────────────────
+        $saldoQuery = EmpaqueClienteSaldo::where('cliente_id', $request->cliente_id);
+        if ($request->filled('empaque_id')) {
+            $saldoQuery->where('empaque_id', $request->empaque_id);
+        }
+        $saldo = (int) ($request->filled('empaque_id')
+            ? $saldoQuery->value('saldo')
+            : $saldoQuery->sum('saldo'));
+
+        $ticket->line()
+               ->row('TOTAL SALIDAS:', (string) $totalSalidas)
+               ->row('TOTAL ENTRADAS:', (string) $totalEntradas)
+               ->row('SALDO ACTUAL:', $saldo . ' empaque(s)')
+               ->doubleLine()
+               ->center('Gracias por su preferencia.')
+               ->feed(2)
+               ->cut();
+
+        return response($ticket->get(), 200, [
+            'Content-Type'        => 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="reporte-empaques.bin"',
+        ]);
+    }
 }
