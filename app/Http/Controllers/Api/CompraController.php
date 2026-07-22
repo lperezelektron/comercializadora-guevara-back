@@ -151,12 +151,15 @@ class CompraController extends Controller
                     'saldo'        => $request->total,
                 ]);
             } else {
-                // Registrar salida de caja (pago de contado)
-                \App\Models\Caja::salida(
-                    $request->total,
-                    "Compra #{$compra->id} - {$compra->referencia}",
-                    $request->almacen_id
-                );
+                // Registrar salida de caja solo si el pago de contado es en Efectivo
+                $formaPago = \App\Models\FormaPago::find($request->f_pago_id);
+                if ($formaPago && strtolower($formaPago->descripcion) === 'efectivo') {
+                    \App\Models\Caja::salida(
+                        $request->total,
+                        "Compra #{$compra->id} - {$compra->referencia}",
+                        $request->almacen_id
+                    );
+                }
             }
 
             DB::commit();

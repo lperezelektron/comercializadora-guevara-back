@@ -181,12 +181,15 @@ class VentaController extends Controller
                     'saldo'      => $request->total,
                 ]);
             } else {
-                // 5. Contado → registrar entrada en Caja
-                Caja::entrada(
-                    $request->total,
-                    'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT) . ' - ' . $request->fecha,
-                    $venta->almacen_id
-                );
+                // 5. Contado → registrar entrada en Caja solo si el pago es en Efectivo
+                $formaPago = \App\Models\FormaPago::find($request->f_pago_id);
+                if ($formaPago && strtolower($formaPago->descripcion) === 'efectivo') {
+                    Caja::entrada(
+                        $request->total,
+                        'VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT) . ' - ' . $request->fecha,
+                        $venta->almacen_id
+                    );
+                }
             }
 
             DB::commit();
@@ -259,13 +262,16 @@ class VentaController extends Controller
                 $venta->ctaPorCobrar->delete();
             }
 
-            // Revertir entrada de caja si era contado
+            // Revertir entrada de caja si era contado en Efectivo
             if (!$venta->credito) {
-                Caja::salida(
-                    $venta->total,
-                    'Cancelación VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT),
-                    $venta->almacen_id
-                );
+                $formaPago = $venta->formaPago;
+                if ($formaPago && strtolower($formaPago->descripcion) === 'efectivo') {
+                    Caja::salida(
+                        $venta->total,
+                        'Cancelación VTA' . str_pad($venta->id, 6, '0', STR_PAD_LEFT),
+                        $venta->almacen_id
+                    );
+                }
             }
 
             $venta->update(['estatus' => 'cancelada']);
